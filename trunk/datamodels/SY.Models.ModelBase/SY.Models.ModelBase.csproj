@@ -1,0 +1,166 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{63EABB22-9033-45C9-9403-02166247D53F}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>SY.Models.ModelBase</RootNamespace>
+    <AssemblyName>SY.Models.ModelBase</AssemblyName>
+    <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <TargetFrameworkProfile />
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>..\..\bin\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>..\..\bin\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x86'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>..\..\bin\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugType>full</DebugType>
+    <PlatformTarget>x86</PlatformTarget>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x86'">
+    <OutputPath>..\..\bin\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <Optimize>true</Optimize>
+    <DebugType>pdbonly</DebugType>
+    <PlatformTarget>x86</PlatformTarget>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>..\..\bin\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugType>full</DebugType>
+    <PlatformTarget>x64</PlatformTarget>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
+    <OutputPath>..\..\bin\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <Optimize>true</Optimize>
+    <DebugType>pdbonly</DebugType>
+    <PlatformTarget>x64</PlatformTarget>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="SY.Common, Version=1.0.0.1841, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\bin\SY.Common.dll</HintPath>
+    </Reference>
+    <Reference Include="SY.EDM, Version=1.0.0.1841, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\bin\SY.EDM.dll</HintPath>
+    </Reference>
+    <Reference Include="Sy.Global">
+      <HintPath>..\..\thirdparty\dll\SY\Sy.Global.dll</HintPath>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.ServiceModel" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="CIRPDataModel\ICIRPNuclideDM.cs" />
+    <Compile Include="CIRPDataModel\CIRPNuclideDM.cs" />
+    <Compile Include="EFDCDataModel\EFDC_DM.cs" />
+    <Compile Include="HECDataModel\HEC_DM.cs" />
+    <Compile Include="天地图数据模型\Tianditu_DistrictQuery_DM.cs" />
+    <Compile Include="气象数据模型\IWeather.cs" />
+    <Compile Include="气象数据模型\Weather.cs" />
+    <Compile Include="水体数据模型\BoundaryBase.cs" />
+    <Compile Include="水体数据模型\Gate.cs" />
+    <Compile Include="水体数据模型\HydraulicStructure.cs" />
+    <Compile Include="水体数据模型\ISource.cs" />
+    <Compile Include="水体数据模型\ITSData2D.cs" />
+    <Compile Include="水体数据模型\Source.cs" />
+    <Compile Include="水体数据模型\TSData2D.cs" />
+    <Compile Include="水体数据模型\Weir.cs" />
+    <Compile Include="污染源数据模型\WRYBaseInfo.cs" />
+    <None Include="Properties\AssemblyInfo.subwcrev-template.cs" />
+    <Compile Include="WEIADataModel\WEIAClassifyDM.cs" />
+    <Compile Include="水体数据模型\Boundary.cs" />
+    <Compile Include="水体数据模型\Crosssection.cs" />
+    <Compile Include="水体数据模型\ICrosssection.cs" />
+    <Compile Include="水体数据模型\IModelTime.cs" />
+    <Compile Include="水体数据模型\IDykeBreakStructure.cs" />
+    <Compile Include="水体数据模型\ITSData.cs" />
+    <Compile Include="MIKEDataModel\DfsParams.cs" />
+    <Compile Include="MIKEDataModel\M11ModelInfo.cs" />
+    <Compile Include="水体数据模型\ModelDomain.cs" />
+    <Compile Include="水体数据模型\IBoundary.cs" />
+    <Compile Include="水体数据模型\IModelDomain.cs" />
+    <Compile Include="水体数据模型\IParameter.cs" />
+    <Compile Include="AssessmentResult.cs" />
+    <Compile Include="MornitorPoints.cs" />
+    <Compile Include="水体数据模型\Parameter.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="水体数据模型\DykeBreakStructure.cs" />
+    <Compile Include="水体数据模型\TSData.cs" />
+    <Compile Include="水体数据模型\ModelTime.cs" />
+    <Compile Include="小流域数据模型\ChaoShenChanLiu.cs" />
+    <Compile Include="小流域数据模型\DanWeiXian.cs" />
+    <Compile Include="小流域数据模型\DiXiaJingLiuXianXingShuiKu.cs" />
+    <Compile Include="小流域数据模型\DuanMian.cs" />
+    <Compile Include="小流域数据模型\FenChaDian.cs" />
+    <Compile Include="小流域数据模型\HeDao.cs" />
+    <Compile Include="小流域数据模型\Hui.cs" />
+    <Compile Include="小流域数据模型\JiaoHuiDian.cs" />
+    <Compile Include="小流域数据模型\MaSiJingGen.cs" />
+    <Compile Include="小流域数据模型\ModelObject.cs" />
+    <Compile Include="小流域数据模型\OneDShuiDongLiXue.cs" />
+    <Compile Include="小流域数据模型\Outlet.cs" />
+    <Compile Include="小流域数据模型\ProjectManage.cs" />
+    <Compile Include="小流域数据模型\RangZhongLiuXianXingShuiKu.cs" />
+    <Compile Include="小流域数据模型\ShuiKu.cs" />
+    <Compile Include="小流域数据模型\XiaoLiuYu.cs" />
+    <Compile Include="小流域数据模型\XuManChanLiu.cs" />
+    <Compile Include="小流域数据模型\Yuan.cs" />
+    <Compile Include="小流域数据模型\ZiLiuYu.cs" />
+  </ItemGroup>
+  <ItemGroup />
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>if  $(ConfigurationName) == Release (copy $(TargetPath) $(SolutionDir)\..\..\branches\bin\$(TargetFileName)
+$(SolutionDir)\..\updateRevision.bat $(ProjectDir))</PostBuildEvent>
+  </PropertyGroup>
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+  -->
+</Project>
