@@ -105,6 +105,7 @@
     <Compile Include="水体数据模型\HydraulicStructure.cs" />
     <Compile Include="水体数据模型\ISource.cs" />
     <Compile Include="水体数据模型\ITSData2D.cs" />
+    <Compile Include="水体数据模型\RiverStation.cs" />
     <Compile Include="水体数据模型\Source.cs" />
     <Compile Include="水体数据模型\TSData2D.cs" />
     <Compile Include="水体数据模型\Weir.cs" />

@@ -18,6 +18,7 @@ namespace SY.Models.ModelBase
         {
             Value = new List<TSData>();
             RelationValue = new List<IRelationData>();
+            Location3 = new RiverStation();
         }
 
         [DataMember]
@@ -131,5 +132,9 @@ namespace SY.Models.ModelBase
 
         [DataMember]
         public List<string> Pollutants { get; set; }
+
+
+        [DataMember]
+        public RiverStation Location3 { get; set; }
     }
 }

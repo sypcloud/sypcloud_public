@@ -860,5 +860,263 @@ namespace SY.HECModelAdapter
         {
             
         }
+
+
+
+        public List<Boundary> BoundaryList { get; set; }
+
+        /// <summary>
+        /// 转换01APR2022日期字符串为年，月，日 by wf
+        /// </summary>
+        /// <param name="str"></param>
+        /// <param name="year"></param>
+        /// <param name="mon"></param>
+        /// <param name="day"></param>
+        private void ConvertDateStr2YMD(string str, out int year, out int mon, out int day)
+        {//01APR2022 -> 2022, 4 ,1 
+            year = 0;
+            mon = 0;
+            day = 0;
+            if (str.Length != 9)
+            {
+                throw new Exception("无效的日期字符串");
+            }
+            day = int.Parse(str.Substring(0, 2));
+            string tmon = str.Substring(2, 3);
+            string[] monstr = { "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC" };
+            for (int im = 0; im < monstr.Length; ++im)
+            {
+                if (monstr[im].Equals(tmon))
+                {
+                    mon = im + 1;
+                    break;
+                }
+            }
+            if (mon == 0)
+            {
+                throw new Exception("无效的月份缩写'" + tmon + "'");
+            }
+            year = int.Parse(str.Substring(5, 4));
+        }
+
+        private Boundary makeBoundaryByLines(string[] lines, int startOffset, DateTime startDt)
+        {
+            Boundary boundary = new Boundary();
+            string line1 = lines[startOffset].Replace("Boundary Location=", "");
+            {
+                string[] parts = line1.Split(',');
+                if (parts.Length < 3)
+                {
+                    throw new Exception("无效的Boundary Location");
+                }
+                boundary.Location3.riverName = parts[0].Trim();
+                boundary.Location3.reachName = parts[1].Trim();
+                boundary.Location3.station = parts[2].Trim();
+            }
+
+            string intervalStr = lines[startOffset + 1].Replace("Interval=", "");
+            TimeSpan timeSpan = new TimeSpan();
+            {
+                int n = 0;
+                string unit = "";
+                if (Char.IsDigit(intervalStr[1]))
+                {
+                    n = int.Parse(intervalStr.Substring(0, 2));
+                    unit = intervalStr.Substring(2);
+                }
+                else
+                {
+                    n = int.Parse(intervalStr.Substring(0, 1));
+                    unit = intervalStr.Substring(1);
+                }
+                if (unit.Contains("SEC"))
+                {
+                    timeSpan = new TimeSpan(0, 0, 0, n);
+                }
+                else if (unit.Contains("MIN"))
+                {
+                    timeSpan = new TimeSpan(0, 0, n, 0);
+                }
+                else if (unit.Contains("HOUR"))
+                {
+                    timeSpan = new TimeSpan(0, n, 0, 0);
+                }
+                else if (unit.Contains("DAY"))
+                {
+                    timeSpan = new TimeSpan(n, 0, 0, 0);
+                }
+                else if (unit.Contains("WEE"))
+                {
+                    timeSpan = new TimeSpan(7, 0, 0, 0);
+                }
+                else if (unit.Contains("MON"))
+                {
+                    timeSpan = new TimeSpan(30, 0, 0, 0);
+                }
+                else if (unit.Contains("YEA"))
+                {
+                    timeSpan = new TimeSpan(365, 0, 0, 0);
+                }
+                else
+                {
+                    throw new Exception("无效的时间间隔字符串'" + intervalStr + "'");
+                }
+            }
+
+            int numVal = 0;
+            string line3 = lines[startOffset + 2];
+            if (line3.Contains("Flow Hydrograph="))
+            {
+                numVal = int.Parse(line3.Replace("Flow Hydrograph=", ""));
+                boundary.HDType = enumHDBoundaryType.流量;
+            }
+            else if (line3.Contains("Stage Hydrograph="))
+            {
+                numVal = int.Parse(line3.Replace("Stage Hydrograph=", ""));
+                boundary.HDType = enumHDBoundaryType.水位;
+            }
+            else
+            {
+                throw new Exception("不支持的边界类型'" + line3 + "'");
+            }
+
+            DateTime currDt = startDt;
+            int numLinesOfValue = (int)Math.Ceiling(numVal / 10.0);
+            for (int iline = startOffset + 3; iline < startOffset + 3 + numLinesOfValue; ++iline)
+            {
+                int numValInLine = lines[iline].Length / 8;
+                for (int ival = 0; ival < numValInLine; ++ival)
+                {
+                    TSData tData = new TSData();
+                    tData.DT = currDt;
+                    tData.Data = float.Parse(lines[iline].Substring(ival * 8, 8));
+                    boundary.Value.Add(tData);
+                    currDt += timeSpan;
+                }
+            }
+            return boundary;
+        }
+
+
+
+        public HecModelAdapter(string folderPath)
+        {
+            //wf （1）在Boundary类里扩展
+            //    (2) 实现一个HecModelAdapter构造函数，增加一个属性 List<Boundary>
+            //    (3) 传入一个目录，首先读取prj文件，然后确认u0x和p0x文件，读取数据填充到List<Boundary>属性中，供贾总调用。
+            BoundaryList = new List<Boundary>();
+            try
+            {
+                //遍历目录下全部文件，找到第一个*.prj工程文件路径
+                DirectoryInfo tDir = new DirectoryInfo(folderPath);
+                FileInfo tPrjFile1 = null;
+                foreach (FileInfo tfi in tDir.GetFiles("*.prj"))
+                {
+                    tPrjFile1 = tfi;
+                    break;
+                }
+
+                if (tPrjFile1 == null)
+                {
+                    throw new Exception("没有找到prj文件");
+                }
+
+                string projectRootNameWithoutExtension = tPrjFile1.Name.Replace(".prj", "");
+
+
+                //step1 读取prj文件，获取Current Plan的值
+                string currentPlanExtension = "";
+                {
+
+                    string[] lines = System.IO.File.ReadAllLines(tPrjFile1.FullName);
+                    foreach (string line1 in lines)
+                    {
+                        if (line1.Contains("Current Plan="))
+                        {
+                            currentPlanExtension = line1.Replace("Current Plan=", "");
+                            break;
+                        }
+                    }
+                    if (currentPlanExtension.Equals(""))
+                    {
+                        throw new Exception("Current Plan为空");
+                    }
+                }
+                string currentPlanFilepath = tPrjFile1.DirectoryName + @"\" + projectRootNameWithoutExtension + "." + currentPlanExtension;
+
+
+                //step2 读取Current Plan 的 Simulation Date
+                //如果plan文件模拟时间为空，默认赋值2022-1-1 00:00:00
+                DateTime startDt = new DateTime(2022, 1, 1, 0, 0, 0);
+                DateTime stopDt = new DateTime(2022, 1, 1, 0, 0, 0);
+                string flowFileExtentsion = "";
+                {
+                    string[] lines = System.IO.File.ReadAllLines(currentPlanFilepath);
+                    foreach (string line1 in lines)
+                    {
+                        if (line1.Contains("Simulation Date="))
+                        {
+                            string tempSD = line1.Replace("Simulation Date=", "");
+                            if (tempSD.Length >= 37)
+                            {
+                                string[] tempParts = tempSD.Split(',');
+                                if (tempParts.Length == 4)
+                                {
+                                    int startYear, startMon, startDay, stopYear, stopMon, stopDay;
+                                    int startHour, startMinu, startSec, stopHour, stopMinu, stopSec;
+                                    ConvertDateStr2YMD(tempParts[0], out startYear, out startMon, out startDay);
+                                    ConvertDateStr2YMD(tempParts[2], out stopYear, out stopMon, out stopDay);
+                                    if (tempParts[1].Length != 8)
+                                    {
+                                        throw new Exception("无效的开始时间");
+                                    }
+                                    if (tempParts[3].Length != 8)
+                                    {
+                                        throw new Exception("无效的结束时间");
+                                    }
+                                    startHour = int.Parse(tempParts[1].Substring(0, 2));
+                                    startMinu = int.Parse(tempParts[1].Substring(3, 2));
+                                    startSec = int.Parse(tempParts[1].Substring(6, 2));
+                                    stopHour = int.Parse(tempParts[3].Substring(0, 2));
+                                    stopMinu = int.Parse(tempParts[3].Substring(3, 2));
+                                    stopSec = int.Parse(tempParts[3].Substring(6, 2));
+
+                                    startDt = new DateTime(startYear, startMon, startDay, startHour, startMinu, startSec);
+                                    stopDt = new DateTime(stopYear, stopMon, stopDay, stopHour, stopMinu, stopSec);
+                                }
+                            }
+                        }
+                        else if (line1.Contains("Flow File="))
+                        {
+                            flowFileExtentsion = line1.Replace("Flow File=", "");
+                        }
+                    }
+                }
+
+                //step3 读取Unsteady File 文件中的 Boundary数据
+                if (flowFileExtentsion.Equals(""))
+                {
+                    throw new Exception("Flow File不能为空，请检查plan文件");
+                }
+                string flowFilePath = tPrjFile1.DirectoryName + @"\" + projectRootNameWithoutExtension + "." + flowFileExtentsion;
+                {
+                    string[] lines = System.IO.File.ReadAllLines(flowFilePath);
+                    for (int iline = 0; iline < lines.Length; ++iline)
+                    {
+                        if (lines[iline].Contains("Boundary Location="))
+                        {
+                            Boundary tBoundary = makeBoundaryByLines(lines, iline, startDt);
+                            BoundaryList.Add(tBoundary);
+                        }
+                    }
+                }
+
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+
+        }
     }
 }

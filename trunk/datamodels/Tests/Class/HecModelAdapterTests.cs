@@ -14,6 +14,17 @@ namespace SY.HECModelAdapter.Tests
         [TestMethod()]
         public void RunModelTest()
         {
+            HecModelAdapter hma = null;
+            try
+            {
+                hma = new HecModelAdapter(@"E:\Projects\songmingming-water2022\1river-MCRS(1)(1)\1river-MCRS");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+
+
             Assert.Fail();
         }
     }
