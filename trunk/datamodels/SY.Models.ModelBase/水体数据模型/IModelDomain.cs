@@ -75,7 +75,7 @@ namespace SY.Models.ModelBase
         单位线 =2011,
         马斯京根=2021,
         SWMMMIKE11=2022,
-        SWMMHECRAS = 2023,
+        SWMMHECRAS=2023,
         暂未集成
     }
     public enum enumGridGenerateType

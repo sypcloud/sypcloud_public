@@ -10,7 +10,7 @@ using SY.Utility;
 using System.Data;
 using System.Configuration;
 using Sy.Global;
-using RAS620;
+using RAS505;
 using System.ComponentModel;
 
 namespace SY.HECModelAdapter

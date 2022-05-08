@@ -16,6 +16,9 @@ namespace SY.Models.ModelBase
         public string Boundarykey { get; set; }
         [DataMember]
         public bool IsConstant { get; set; }
+		///
+		///对流扩散边界是否为常数
+		///
         [DataMember]
         public bool IsAdConstant { get; set; }
         [DataMember]
