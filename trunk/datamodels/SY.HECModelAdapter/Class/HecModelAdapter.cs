@@ -50,8 +50,10 @@ namespace SY.HECModelAdapter
                     {
                         using (StreamReader sr = new StreamReader(fs))
                         {
+                            var msg = sr.ReadToEnd();
+                            CommonUtility.Log(msg);
                             if (OutputMsg != null)
-                                OutputMsg(new MessageInfo() { Tag = 0, Message = sr.ReadToEnd() });
+                                OutputMsg(new MessageInfo() { Tag = 0, Message = msg });
 
                         }
                     }
