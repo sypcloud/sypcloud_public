@@ -7,17 +7,33 @@ using Sy.Global;
 
 namespace SY.Models.ModelBase
 {
-    public class HydraulicStructure
+    public enum StructureSectionType
     {
+        Rectangular=0,
+        Cicular=1,
+        Irregular =2,
+    }
+    public class HydraulicStructure
+    {        
         public string RiverName { get; set; }
         public float Chainage { get; set; }
         public List<PointD> Location { get; set; }
         public string ID { get; set; }
         public string TopID { get; set; }
-        public List<float> Level { get; set; }
-        public List<float> Width { get; set; }
         public int Type { get; set; }
         public int ControlStrategyType { get; set; }
         public string coordinate_type { get; set; }
+        public float Diameter { get; set; }
+
+        public float FlowWidth { get; set; }
+
+        public float Height { get; set; }
+
+        public float Length { get; set; }
+
+        public List<float> Level { get; set; }
+        public List<float> Width { get; set; }
+
+        public StructureSectionType SectionType { get; set; }
     }
 }

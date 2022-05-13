@@ -6,8 +6,9 @@ using System.Threading.Tasks;
 
 namespace SY.Models.ModelBase
 {
-    public class Weir : HydraulicStructure
+    public class Culvert:HydraulicStructure
     {
-        
+        public float UpsInvertLevel { get; set; }
+        public float DwnInvertLevel { get; set; }
     }
 }
