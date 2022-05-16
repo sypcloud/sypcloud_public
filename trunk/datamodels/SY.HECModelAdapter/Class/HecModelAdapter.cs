@@ -26,12 +26,140 @@ namespace SY.HECModelAdapter
         /// </summary>
         public event OutputMsgHandler OutputMsg;
 
+        public HecModelAdapter()
+        {
+        }
+
         public HecModelAdapter(bool configed)
         {
             var assemblyPath = this.GetType().Assembly.Location;
             var cfigfile = assemblyPath + ".config";
             config = ConfigurationManager.OpenExeConfiguration(assemblyPath);
             pythonEngine = config.AppSettings.Settings["PythonEngine"].Value;
+        }
+
+        public HecModelAdapter(string folderPath)
+        {
+            //wf （1）在Boundary类里扩展
+            //    (2) 实现一个HecModelAdapter构造函数，增加一个属性 List<Boundary>
+            //    (3) 传入一个目录，首先读取prj文件，然后确认u0x和p0x文件，读取数据填充到List<Boundary>属性中，供贾总调用。
+            BoundaryList = new List<Boundary>();
+            try
+            {
+                //遍历目录下全部文件，找到第一个*.prj工程文件路径
+                DirectoryInfo tDir = new DirectoryInfo(folderPath);
+                FileInfo tPrjFile1 = null;
+                foreach (FileInfo tfi in tDir.GetFiles("*.prj"))
+                {
+                    tPrjFile1 = tfi;
+                    break;
+                }
+
+                if (tPrjFile1 == null)
+                {
+                    throw new Exception("没有找到prj文件");
+                }
+
+                string projectRootNameWithoutExtension = tPrjFile1.Name.Replace(".prj", "");
+
+
+                //step1 读取prj文件，获取Current Plan的值
+                string currentPlanExtension = "";
+                {
+
+                    string[] lines = System.IO.File.ReadAllLines(tPrjFile1.FullName);
+                    foreach (string line1 in lines)
+                    {
+                        if(line1.Contains("Proj Title="))
+                        {
+                            ProjTitle = line1.Replace("Proj Title=", "");
+                        }
+                        if (line1.Contains("Current Plan="))
+                        {
+                            PlanFile = ProjTitle + "." + line1.Replace("Current Plan=", "");
+                        }
+                        if(line1.Contains("Geom File="))
+                        {
+                            Geofile = ProjTitle+"."+ line1.Replace("Geom File=", "");
+                        }
+                    }
+                }
+                string currentPlanFilepath = tPrjFile1.DirectoryName + @"\" + PlanFile;
+
+
+                //step2 读取Current Plan 的 Simulation Date
+                //如果plan文件模拟时间为空，默认赋值2022-1-1 00:00:00
+                DateTime startDt = new DateTime(2022, 1, 1, 0, 0, 0);
+                DateTime stopDt = new DateTime(2022, 1, 1, 0, 0, 0);
+                string flowFileExtentsion = "";
+                {
+                    string[] lines = System.IO.File.ReadAllLines(currentPlanFilepath);
+                    foreach (string line1 in lines)
+                    {
+                        if (line1.Contains("Simulation Date="))
+                        {
+                            string tempSD = line1.Replace("Simulation Date=", "");
+                            if (tempSD.Length >= 37)
+                            {
+                                string[] tempParts = tempSD.Split(',');
+                                if (tempParts.Length == 4)
+                                {
+                                    int startYear, startMon, startDay, stopYear, stopMon, stopDay;
+                                    int startHour, startMinu, startSec, stopHour, stopMinu, stopSec;
+                                    ConvertDateStr2YMD(tempParts[0], out startYear, out startMon, out startDay);
+                                    ConvertDateStr2YMD(tempParts[2], out stopYear, out stopMon, out stopDay);
+                                    if (tempParts[1].Length != 8)
+                                    {
+                                        throw new Exception("无效的开始时间");
+                                    }
+                                    if (tempParts[3].Length != 8)
+                                    {
+                                        throw new Exception("无效的结束时间");
+                                    }
+                                    startHour = int.Parse(tempParts[1].Substring(0, 2));
+                                    startMinu = int.Parse(tempParts[1].Substring(3, 2));
+                                    startSec = int.Parse(tempParts[1].Substring(6, 2));
+                                    stopHour = int.Parse(tempParts[3].Substring(0, 2));
+                                    stopMinu = int.Parse(tempParts[3].Substring(3, 2));
+                                    stopSec = int.Parse(tempParts[3].Substring(6, 2));
+
+                                    startDt = new DateTime(startYear, startMon, startDay, startHour, startMinu, startSec);
+                                    stopDt = new DateTime(stopYear, stopMon, stopDay, stopHour, stopMinu, stopSec);
+                                }
+                            }
+                        }
+                        else if (line1.Contains("Flow File="))
+                        {
+                            flowFileExtentsion = line1.Replace("Flow File=", "");
+                        }
+                    }
+                }
+
+                //step3 读取Unsteady File 文件中的 Boundary数据
+                if (flowFileExtentsion.Equals(""))
+                {
+                    throw new Exception("Flow File不能为空，请检查plan文件");
+                }
+                string flowFilePath = tPrjFile1.DirectoryName + @"\" + projectRootNameWithoutExtension + "." + flowFileExtentsion;
+                {
+                    string[] lines = System.IO.File.ReadAllLines(flowFilePath);
+                    for (int iline = 0; iline < lines.Length; ++iline)
+                    {
+                        if (lines[iline].Contains("Boundary Location="))
+                        {
+                            Boundary tBoundary = makeBoundaryByLines(lines, iline, startDt);
+                            if(tBoundary!=null)
+                                BoundaryList.Add(tBoundary);
+                        }
+                    }
+                }
+
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+
         }
 
         public bool RunModel(string controlfile)
@@ -44,7 +172,7 @@ namespace SY.HECModelAdapter
                 // 读取日志
                 var dir = Path.GetDirectoryName(controlfile);
                 var logfile = Directory.GetFiles(dir, ".computeMsgs.txt").FirstOrDefault();
-                while(!isRunOk && File.Exists(logfile))
+                while (!isRunOk && File.Exists(logfile))
                 {
                     using (FileStream fs = new FileStream(logfile, FileMode.Open, FileAccess.Read, FileShare.Read))
                     {
@@ -407,22 +535,23 @@ namespace SY.HECModelAdapter
                         var ptsno = int.Parse(st[1].Trim());
                         var pts = new string[ptsno * 2];
                         rr.Points = new List<Sy.Global.PointD>();
-                        for (int i = 0; i < ptsno * 2; i++)
-                        {
-                            if (i != 0 && i % 4 == 0)
-                            {
-                                char[] buffer = new char[16];
-                                sr.Read(buffer, 0, 2);
-                                sr.Read(buffer, 0, 16);
-                                pts[i] = new string(buffer);
-                            }
-                            else
-                            {
-                                char[] buffer = new char[16];
-                                sr.Read(buffer, 0, 16);
-                                pts[i] = new string(buffer);
-                            }
-                        }
+                        pts = readHecDataTable(ref sr, ptsno * 2);
+                        //for (int i = 0; i < ptsno * 2; i++)
+                        //{
+                        //    if (i != 0 && i % 4 == 0)
+                        //    {
+                        //        char[] buffer = new char[16];
+                        //        sr.Read(buffer, 0, 2);
+                        //        sr.Read(buffer, 0, 16);
+                        //        pts[i] = new string(buffer);
+                        //    }
+                        //    else
+                        //    {
+                        //        char[] buffer = new char[16];
+                        //        sr.Read(buffer, 0, 16);
+                        //        pts[i] = new string(buffer);
+                        //    }
+                        //}
                         for (int i = 0; i < ptsno * 2;)
                         {
                             rr.Points.Add(new Sy.Global.PointD(double.Parse(pts[i].Trim())
@@ -448,43 +577,70 @@ namespace SY.HECModelAdapter
                         {
                             var cs = new HECCrossSection();
                             cs.Location = line.Split('=')[1].Split(',');
-                            line = sr.ReadLine();
-                            if (line.StartsWith("BEGIN DESCRIPTION:"))
-                            { cs.Description = sr.ReadLine(); sr.ReadLine(); }
-                            cs.LastEditedTime = sr.ReadLine();
-                            cs.Data = new List<Sy.Global.PointD>();
 
                             line = sr.ReadLine();
+
+                            if (line.StartsWith("BEGIN DESCRIPTION:"))
+                            {
+                                cs.Description = sr.ReadLine();
+                                sr.ReadLine();
+                                line = sr.ReadLine();
+                            }
+                            else if (line.StartsWith("Node Last Edited Time="))
+                            {
+                                cs.LastEditedTime = line;
+                                line = sr.ReadLine();
+                            }
+                            else if (line.StartsWith("XS GIS Cut Line")) // jump XS GIS Cut Line
+                            {
+                                st = line.Split('=');
+                                ptsno = int.Parse(st[1]);
+                                pts = new string[ptsno*2];
+                                pts = readHecDataTable(ref sr, ptsno*2);
+                                line = sr.ReadLine();
+                                JumpUnuseLine(ref sr, ref line);
+                                continue;
+                            }
+                            else
+                            {
+                                JumpUnuseLine(ref sr, ref line);
+                                continue;
+                            }
+
+                            cs.Data = new List<Sy.Global.PointD>();
+
                             st = line.Split('=');
                             ptsno = int.Parse(st[1]);
+
                             pts = new string[ptsno];
+                            pts = readHecDataTable(ref sr, ptsno,5);
+                            //for (int i = 0; i < ptsno; i++)
+                            //{
+                            //    if (i != 0 && i % 4 == 0)
+                            //    {
+                            //        char[] buffer = new char[16];
+                            //        sr.Read(buffer, 0, 2);
+                            //        sr.Read(buffer, 0, 16);
+                            //        pts[i] = new string(buffer);
+                            //    }
+                            //    else
+                            //    {
+                            //        char[] buffer = new char[16];
+                            //        sr.Read(buffer, 0, 16);
+                            //        pts[i] = new string(buffer);
+                            //    }
+                            //}
                             for (int i = 0; i < ptsno; i++)
                             {
-                                if (i != 0 && i % 4 == 0)
-                                {
-                                    char[] buffer = new char[16];
-                                    sr.Read(buffer, 0, 2);
-                                    sr.Read(buffer, 0, 16);
-                                    pts[i] = new string(buffer);
-                                }
-                                else
-                                {
-                                    char[] buffer = new char[16];
-                                    sr.Read(buffer, 0, 16);
-                                    pts[i] = new string(buffer);
-                                }
-                            }
-                            for (int i = 0; i < ptsno; i++)
-                            {
-                                var regx = new System.Text.RegularExpressions.Regex("[ ]+");
+                                var regx = new System.Text.RegularExpressions.Regex("[ ]+|\r\n");
                                 var pt = regx.Split(pts[i].Trim());
                                 cs.Data.Add(new Sy.Global.PointD(double.Parse(pt[0].Trim())
                                     , double.Parse(pt[1].Trim())));
                             }
 
-                            line = sr.ReadLine();
+                            JumpUnuseLine(ref sr, ref line);
 
-                            if ((line = sr.ReadLine()).StartsWith("#Mann"))
+                            if (line.StartsWith("#Mann"))
                             {
                                 cs.Manning = sr.ReadLine();
                                 cs.ManningSta = sr.ReadLine();
@@ -761,7 +917,7 @@ namespace SY.HECModelAdapter
 
                                     var tmp = line.Trim().Split(',');
                                     if (tmp.Count() == 1) tmp = line.Trim().Split('，');
-                                    chainage = float.Parse(tmp[1].Split(':')[0].Trim())*-1; //根据情况自定义
+                                    chainage = float.Parse(tmp[1].Split(':')[0].Trim()) * -1; //根据情况自定义
                                     chainages.Add(chainage);
 
                                     while (!sr.EndOfStream)
@@ -772,11 +928,11 @@ namespace SY.HECModelAdapter
 
                                         if (pt[0] == "BEGIN")
                                         {
-                                            chainage = float.Parse(pt[1].Split(':')[0].Trim())*-1;//根据情况自定义
+                                            chainage = float.Parse(pt[1].Split(':')[0].Trim()) * -1;//根据情况自定义
                                             chainages.Add(chainage);
 
                                             cs.Data = cspts;
-                                            
+
                                             var xmin = (from r in cs.Data select r.X).Min();
                                             var xminright = (from r in cs.Data where r.X > xmin select r.X).FirstOrDefault();
                                             var xmax = (from r in cs.Data select r.X).Max();
@@ -787,7 +943,7 @@ namespace SY.HECModelAdapter
                                             cs.LastEditedTime = DateTime.Now.ToShortDateString();
                                             cs.XS_HTab_Starting = string.Format("XS HTab Starting El and Incr={0},{1},{2}", 175.5, 0.04, 20);
                                             csc.Add(cs);
-                                            
+
                                             cs = new HECCrossSection();
                                             cspts = new List<PointD>();
                                         }
@@ -797,7 +953,7 @@ namespace SY.HECModelAdapter
                                     sr.Close();
                                 }
 
-                                for(int i=0;i<csc.Count;i++)
+                                for (int i = 0; i < csc.Count; i++)
                                 {
                                     csc[i].Location = new string[5];
                                     csc[i].Location[0] = "1";
@@ -835,6 +991,33 @@ namespace SY.HECModelAdapter
             }
         }
 
+        public string Geo2Json(string geofile)
+        {
+            try
+            {
+                var hecdm = GetGeometry(geofile);
+                var shp = Path.Combine(Path.GetDirectoryName(geofile),
+                    Path.GetFileNameWithoutExtension(geofile) + ".shp");
+                Utility.Utility.CreatePolylineShp(hecdm, shp);
+                Utility.Utility.ConvertShp2JsonFileEx3(shp);
+                return "";
+            }
+            catch (Exception ex)
+            {
+                if (OutputMsg != null)
+                {
+                    OutputMsg(new MessageInfo() { Tag = 0, Message = ex.Message });
+                }
+                return null;
+            }
+        }
+
+        public List<Boundary> BoundaryList { get; set; }
+        public string Geofile { get; set; }
+        public string ProjTitle { get; set; }
+        public string PlanFile { get; set; }
+
+
         private void runModelInBackgroud(string controlfile)
         {
             var bgw = new BackgroundWorker();
@@ -860,12 +1043,8 @@ namespace SY.HECModelAdapter
 
         private void Bgw_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
-            
+
         }
-
-
-
-        public List<Boundary> BoundaryList { get; set; }
 
         /// <summary>
         /// 转换01APR2022日期字符串为年，月，日 by wf
@@ -979,7 +1158,8 @@ namespace SY.HECModelAdapter
             }
             else
             {
-                throw new Exception("不支持的边界类型'" + line3 + "'");
+                //throw new Exception("不支持的边界类型'" + line3 + "'");
+                return null;
             }
 
             DateTime currDt = startDt;
@@ -999,126 +1179,37 @@ namespace SY.HECModelAdapter
             return boundary;
         }
 
-
-
-        public HecModelAdapter(string folderPath)
+        private string[] readHecDataTable(ref StreamReader sr, int ptsno, int colums=4)
         {
-            //wf （1）在Boundary类里扩展
-            //    (2) 实现一个HecModelAdapter构造函数，增加一个属性 List<Boundary>
-            //    (3) 传入一个目录，首先读取prj文件，然后确认u0x和p0x文件，读取数据填充到List<Boundary>属性中，供贾总调用。
-            BoundaryList = new List<Boundary>();
-            try
+            var pts = new string[ptsno];
+            for (int i = 0; i < ptsno; i++)
             {
-                //遍历目录下全部文件，找到第一个*.prj工程文件路径
-                DirectoryInfo tDir = new DirectoryInfo(folderPath);
-                FileInfo tPrjFile1 = null;
-                foreach (FileInfo tfi in tDir.GetFiles("*.prj"))
+                if (i != 0 && i % colums == 0)
                 {
-                    tPrjFile1 = tfi;
-                    break;
+                    char[] buffer = new char[16];
+                    sr.Read(buffer, 0, 2);
+                    sr.Read(buffer, 0, 16);
+                    pts[i] = new string(buffer);
                 }
-
-                if (tPrjFile1 == null)
+                else
                 {
-                    throw new Exception("没有找到prj文件");
+                    char[] buffer = new char[16];
+                    sr.Read(buffer, 0, 16);
+                    pts[i] = new string(buffer);
                 }
-
-                string projectRootNameWithoutExtension = tPrjFile1.Name.Replace(".prj", "");
-
-
-                //step1 读取prj文件，获取Current Plan的值
-                string currentPlanExtension = "";
-                {
-
-                    string[] lines = System.IO.File.ReadAllLines(tPrjFile1.FullName);
-                    foreach (string line1 in lines)
-                    {
-                        if (line1.Contains("Current Plan="))
-                        {
-                            currentPlanExtension = line1.Replace("Current Plan=", "");
-                            break;
-                        }
-                    }
-                    if (currentPlanExtension.Equals(""))
-                    {
-                        throw new Exception("Current Plan为空");
-                    }
-                }
-                string currentPlanFilepath = tPrjFile1.DirectoryName + @"\" + projectRootNameWithoutExtension + "." + currentPlanExtension;
-
-
-                //step2 读取Current Plan 的 Simulation Date
-                //如果plan文件模拟时间为空，默认赋值2022-1-1 00:00:00
-                DateTime startDt = new DateTime(2022, 1, 1, 0, 0, 0);
-                DateTime stopDt = new DateTime(2022, 1, 1, 0, 0, 0);
-                string flowFileExtentsion = "";
-                {
-                    string[] lines = System.IO.File.ReadAllLines(currentPlanFilepath);
-                    foreach (string line1 in lines)
-                    {
-                        if (line1.Contains("Simulation Date="))
-                        {
-                            string tempSD = line1.Replace("Simulation Date=", "");
-                            if (tempSD.Length >= 37)
-                            {
-                                string[] tempParts = tempSD.Split(',');
-                                if (tempParts.Length == 4)
-                                {
-                                    int startYear, startMon, startDay, stopYear, stopMon, stopDay;
-                                    int startHour, startMinu, startSec, stopHour, stopMinu, stopSec;
-                                    ConvertDateStr2YMD(tempParts[0], out startYear, out startMon, out startDay);
-                                    ConvertDateStr2YMD(tempParts[2], out stopYear, out stopMon, out stopDay);
-                                    if (tempParts[1].Length != 8)
-                                    {
-                                        throw new Exception("无效的开始时间");
-                                    }
-                                    if (tempParts[3].Length != 8)
-                                    {
-                                        throw new Exception("无效的结束时间");
-                                    }
-                                    startHour = int.Parse(tempParts[1].Substring(0, 2));
-                                    startMinu = int.Parse(tempParts[1].Substring(3, 2));
-                                    startSec = int.Parse(tempParts[1].Substring(6, 2));
-                                    stopHour = int.Parse(tempParts[3].Substring(0, 2));
-                                    stopMinu = int.Parse(tempParts[3].Substring(3, 2));
-                                    stopSec = int.Parse(tempParts[3].Substring(6, 2));
-
-                                    startDt = new DateTime(startYear, startMon, startDay, startHour, startMinu, startSec);
-                                    stopDt = new DateTime(stopYear, stopMon, stopDay, stopHour, stopMinu, stopSec);
-                                }
-                            }
-                        }
-                        else if (line1.Contains("Flow File="))
-                        {
-                            flowFileExtentsion = line1.Replace("Flow File=", "");
-                        }
-                    }
-                }
-
-                //step3 读取Unsteady File 文件中的 Boundary数据
-                if (flowFileExtentsion.Equals(""))
-                {
-                    throw new Exception("Flow File不能为空，请检查plan文件");
-                }
-                string flowFilePath = tPrjFile1.DirectoryName + @"\" + projectRootNameWithoutExtension + "." + flowFileExtentsion;
-                {
-                    string[] lines = System.IO.File.ReadAllLines(flowFilePath);
-                    for (int iline = 0; iline < lines.Length; ++iline)
-                    {
-                        if (lines[iline].Contains("Boundary Location="))
-                        {
-                            Boundary tBoundary = makeBoundaryByLines(lines, iline, startDt);
-                            BoundaryList.Add(tBoundary);
-                        }
-                    }
-                }
-
             }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
-
+            return pts;
         }
+
+        private void JumpUnuseLine(ref StreamReader sr, ref string line)
+        {
+            line = sr.ReadLine();
+            while (line == "" || line == "\r\n")
+            {
+                line = sr.ReadLine();
+                continue;
+            }
+        }
+
     }
 }
