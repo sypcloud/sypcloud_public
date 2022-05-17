@@ -40,6 +40,7 @@ namespace SY.Models.ModelBase
     {
         public string RiverName { get; set; }
         public string ReachName { get; set; }
+        
         public List<PointD> Points { get; set; }
         public PointD TextLocation { get; set; }
         public List<HECCrossSection> CSCollection { get; set; }

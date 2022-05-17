@@ -521,8 +521,6 @@ namespace SY.HECModelAdapter
                 string line = string.Empty;
                 while (!sr.EndOfStream)
                 {
-                    if (line == string.Empty) line = sr.ReadLine();
-
                     if (line.Trim().StartsWith("River Reach"))
                     {
                         var rr = new RiverReach();
@@ -536,22 +534,6 @@ namespace SY.HECModelAdapter
                         var pts = new string[ptsno * 2];
                         rr.Points = new List<Sy.Global.PointD>();
                         pts = readHecDataTable(ref sr, ptsno * 2);
-                        //for (int i = 0; i < ptsno * 2; i++)
-                        //{
-                        //    if (i != 0 && i % 4 == 0)
-                        //    {
-                        //        char[] buffer = new char[16];
-                        //        sr.Read(buffer, 0, 2);
-                        //        sr.Read(buffer, 0, 16);
-                        //        pts[i] = new string(buffer);
-                        //    }
-                        //    else
-                        //    {
-                        //        char[] buffer = new char[16];
-                        //        sr.Read(buffer, 0, 16);
-                        //        pts[i] = new string(buffer);
-                        //    }
-                        //}
                         for (int i = 0; i < ptsno * 2;)
                         {
                             rr.Points.Add(new Sy.Global.PointD(double.Parse(pts[i].Trim())
@@ -559,104 +541,104 @@ namespace SY.HECModelAdapter
                             i = i + 2;
                         }
 
-                        line = sr.ReadLine();
-                        line = sr.ReadLine();
+                        JumpUnuseLine(ref sr, ref line);
 
-                        st = line.Split('=')[1].Split(',');
-                        rr.TextLocation = new Sy.Global.PointD(double.Parse(st[0].Trim()), double.Parse(st[1].Trim()));
+                        if (line.StartsWith("Rch Text X Y"))
+                        {
+                            st = line.Split('=')[1].Split(',');
+                            rr.TextLocation = new Sy.Global.PointD(double.Parse(st[0].Trim()), double.Parse(st[1].Trim()));
+                        }
 
-                        line = sr.ReadLine();
-                        line = sr.ReadLine();
+                        JumpUnuseLine(ref sr, ref line);
 
                         rr.CSCollection = new List<HECCrossSection>();
 
-                        while ((line = sr.ReadLine()) == "")
-                            continue;
+                        JumpUnuseLine(ref sr, ref line);
 
                         while (line.StartsWith("Type RM Length L Ch R"))
                         {
                             var cs = new HECCrossSection();
                             cs.Location = line.Split('=')[1].Split(',');
 
-                            line = sr.ReadLine();
+                            JumpUnuseLine(ref sr, ref line);
+
+                            if (line.StartsWith("XS GIS Cut Line")) // jump XS GIS Cut Line
+                            {
+                                st = line.Split('=');
+                                ptsno = int.Parse(st[1]);
+                                pts = new string[ptsno * 2];
+                                pts = readHecDataTable(ref sr, ptsno * 2);
+
+                                JumpUnuseLine(ref sr, ref line);
+                            }
 
                             if (line.StartsWith("BEGIN DESCRIPTION:"))
                             {
                                 cs.Description = sr.ReadLine();
-                                sr.ReadLine();
-                                line = sr.ReadLine();
+
+                                JumpUnuseLine(ref sr, ref line);
                             }
-                            else if (line.StartsWith("Node Last Edited Time="))
+                            if (line.StartsWith("Node Last Edited Time="))
                             {
                                 cs.LastEditedTime = line;
-                                line = sr.ReadLine();
-                            }
-                            else if (line.StartsWith("XS GIS Cut Line")) // jump XS GIS Cut Line
+
+                                JumpUnuseLine(ref sr, ref line);
+                            }                            
+                            if (line.StartsWith("#Sta/Elev"))
                             {
+                                cs.Data = new List<Sy.Global.PointD>();
                                 st = line.Split('=');
                                 ptsno = int.Parse(st[1]);
-                                pts = new string[ptsno*2];
-                                pts = readHecDataTable(ref sr, ptsno*2);
-                                line = sr.ReadLine();
+
+                                pts = new string[ptsno];
+                                pts = readHecDataTable(ref sr, ptsno, 5);
+                                for (int i = 0; i < ptsno; i++)
+                                {
+                                    var regx = new System.Text.RegularExpressions.Regex("[ ]+|\r\n");
+                                    var pt = regx.Split(pts[i].Trim());
+                                    cs.Data.Add(new Sy.Global.PointD(double.Parse(pt[0].Trim())
+                                        , double.Parse(pt[1].Trim())));
+                                }
+
                                 JumpUnuseLine(ref sr, ref line);
-                                continue;
                             }
-                            else
-                            {
-                                JumpUnuseLine(ref sr, ref line);
-                                continue;
-                            }
-
-                            cs.Data = new List<Sy.Global.PointD>();
-
-                            st = line.Split('=');
-                            ptsno = int.Parse(st[1]);
-
-                            pts = new string[ptsno];
-                            pts = readHecDataTable(ref sr, ptsno,5);
-                            //for (int i = 0; i < ptsno; i++)
-                            //{
-                            //    if (i != 0 && i % 4 == 0)
-                            //    {
-                            //        char[] buffer = new char[16];
-                            //        sr.Read(buffer, 0, 2);
-                            //        sr.Read(buffer, 0, 16);
-                            //        pts[i] = new string(buffer);
-                            //    }
-                            //    else
-                            //    {
-                            //        char[] buffer = new char[16];
-                            //        sr.Read(buffer, 0, 16);
-                            //        pts[i] = new string(buffer);
-                            //    }
-                            //}
-                            for (int i = 0; i < ptsno; i++)
-                            {
-                                var regx = new System.Text.RegularExpressions.Regex("[ ]+|\r\n");
-                                var pt = regx.Split(pts[i].Trim());
-                                cs.Data.Add(new Sy.Global.PointD(double.Parse(pt[0].Trim())
-                                    , double.Parse(pt[1].Trim())));
-                            }
-
-                            JumpUnuseLine(ref sr, ref line);
 
                             if (line.StartsWith("#Mann"))
                             {
                                 cs.Manning = sr.ReadLine();
                                 cs.ManningSta = sr.ReadLine();
+
+                                JumpUnuseLine(ref sr, ref line);
                             }
 
-                            line = sr.ReadLine();
-                            cs.XS_HTab_Starting = sr.ReadLine();
-                            line = sr.ReadLine();
-                            line = sr.ReadLine();
-                            line = sr.ReadLine();
+                            if (line.StartsWith("XS Rating Curve"))
+                            {
+                                JumpUnuseLine(ref sr, ref line);
+                            }
+
+                            if (line.StartsWith("XS HTab Starting El and Incr"))
+                            {
+                                cs.XS_HTab_Starting = line;
+
+                                JumpUnuseLine(ref sr, ref line);
+                            }
+
+                            if(line.StartsWith("XS HTab Horizontal Distribution"))
+                            {
+                                JumpUnuseLine(ref sr, ref line);
+                            }
+
+                            if (line.StartsWith("Exp/Cntr(USF)"))
+                            {
+                                JumpUnuseLine(ref sr, ref line);
+                            }
+
+                            if (line.StartsWith("Exp/Cntr"))
+                            {
+                                JumpUnuseLine(ref sr, ref line);
+                            }
 
                             rr.CSCollection.Add(cs);
-
-                            while ((line = sr.ReadLine()) == "")
-                                continue;
-
                         }
 
                         hecModel.RiverReachCollection.Add(rr);
@@ -997,7 +979,7 @@ namespace SY.HECModelAdapter
             {
                 var hecdm = GetGeometry(geofile);
                 var shp = Path.Combine(Path.GetDirectoryName(geofile),
-                    Path.GetFileNameWithoutExtension(geofile) + ".shp");
+                    Path.GetFileNameWithoutExtension(geofile) + "-shp.shp");
                 Utility.Utility.CreatePolylineShp(hecdm, shp);
                 Utility.Utility.ConvertShp2JsonFileEx3(shp);
                 return "";
@@ -1204,7 +1186,7 @@ namespace SY.HECModelAdapter
         private void JumpUnuseLine(ref StreamReader sr, ref string line)
         {
             line = sr.ReadLine();
-            while (line == "" || line == "\r\n")
+            while (line == "" || line == "\r\n" || line.Length==0)
             {
                 line = sr.ReadLine();
                 continue;
