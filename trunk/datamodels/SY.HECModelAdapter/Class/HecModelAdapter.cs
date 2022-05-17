@@ -994,6 +994,28 @@ namespace SY.HECModelAdapter
             }
         }
 
+        public string Geo2Json(HEC_DM hecdm,string jsonfile)
+        {
+            try
+            {
+                var shp = Path.Combine(Path.GetDirectoryName(jsonfile),
+                    Path.GetFileNameWithoutExtension(jsonfile) + "-shp.shp");
+                Utility.Utility.CreatePolylineShp(hecdm, shp);
+                
+                var json = Utility.Utility.ConvertShp2JsonFileEx4(shp);
+                File.WriteAllText(jsonfile, json);
+                return json;
+            }
+            catch (Exception ex)
+            {
+                if (OutputMsg != null)
+                {
+                    OutputMsg(new MessageInfo() { Tag = 0, Message = ex.Message });
+                }
+                return null;
+            }
+        }
+
         public List<Boundary> BoundaryList { get; set; }
         public string Geofile { get; set; }
         public string ProjTitle { get; set; }
