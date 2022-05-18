@@ -1066,7 +1066,29 @@ namespace SY.HECModelAdapter
             {
                 var shp = Path.Combine(Path.GetDirectoryName(jsonfile),
                     Path.GetFileNameWithoutExtension(jsonfile) + "-shp.shp");
-                Utility.Utility.CreatePolylineShp(riverdm, shp);
+                Utility.Utility.CreateRiverNetPolylineShp(riverdm, shp);
+
+                var json = Utility.Utility.ConvertShp2JsonFileEx4(shp);
+                File.WriteAllText(jsonfile, json);
+                return json;
+            }
+            catch (Exception ex)
+            {
+                if (OutputMsg != null)
+                {
+                    OutputMsg(new MessageInfo() { Tag = 0, Message = ex.Message });
+                }
+                return null;
+            }
+        }
+
+        public string Crossection2Json(List<River> riverdm, string jsonfile)
+        {
+            try
+            {
+                var shp = Path.Combine(Path.GetDirectoryName(jsonfile),
+                    Path.GetFileNameWithoutExtension(jsonfile) + "-shp.shp");
+                Utility.Utility.CreateRiverXSPolylineShp(riverdm, shp);
 
                 var json = Utility.Utility.ConvertShp2JsonFileEx4(shp);
                 File.WriteAllText(jsonfile, json);
@@ -1096,6 +1118,65 @@ namespace SY.HECModelAdapter
                     rvr.RvrMdCode = rv.RiverName + "&" + rv.ReachName;
                     rvr.StChainage = float.Parse(rv.CSCollection.Last().Location[1].Replace("*", ""));
                     rvr.EdChainage = float.Parse(rv.CSCollection.Last().Location[0].Replace("*", ""));
+                    rvr.XSectoin = new List<Crosssection>();
+                    //断面处理
+                    var origin =float.Parse( rv.CSCollection.Last().Location[1].Replace("*", ""));
+                    foreach (var cs in rv.CSCollection)
+                    {
+                        //计算断面测量点空间坐标
+                        var pts = cs.Data;//断面测量点
+                        var branchPts = rv.Points;//河段点坐标集合
+                        var distance = float.Parse(cs.Location[1].Replace("*","")) - origin;//距离
+                        //将断面测量点分左右
+                        var ld = new List<float>();
+                        var rd = new List<float>();
+                        var lpts = new List<PointD>();
+                        var rpts = new List<PointD>();
+                        //最低点
+                        var zmin = (from r in pts select r.Y).Min();
+                        var zminPts = (from r in pts where r.Y == zmin select r);
+                        var cidx = -1;
+                        PointD cpt;
+                        if(zminPts.Count()==1)
+                        {
+                            cidx = pts.IndexOf(zminPts.First());
+                            cpt = pts[cidx];
+                        }
+                        else
+                        {
+                            if (zminPts.Count() % 2 == 0)
+                            {
+                                //增加一个点
+                                var insetIdx = pts.IndexOf(zminPts.First()) + zminPts.Count() / 2;
+                                cpt = new PointD(zminPts.First().X + (zminPts.Last().X - zminPts.First().X) / 2, zmin);
+                                pts.Insert(insetIdx - 1, cpt);
+                                cidx = insetIdx;
+                            }
+                            else
+                            {
+                                cidx = pts.IndexOf(zminPts.First())+(int) Math.Floor(zminPts.Count() / 2.0);
+                                cpt = pts[cidx];
+                            }
+                        }
+                        ld = pts.Take(cidx).Select(x => (float)x.X).ToList<float>();
+                        var ldz = pts.Take(cidx).Select(x => (float)x.Y).ToList<float>();
+                        rd = pts.Skip(cidx+1).Select(x => (float)x.X).ToList<float>();
+                        var rdz = pts.Skip(cidx+1).Select(x => (float)x.Y).ToList<float>();
+                        var cptz = cpt.Y;
+                        //计算坐标
+                        Utility.Utility.GetSectionCoords(branchPts, distance, ld, rd, ref lpts, ref rpts, ref cpt.X, ref cpt.Y);
+                        for (int i = 0; i < ld.Count; i++)
+                            lpts[i] = new PointD(lpts[i].X, lpts[i].Y,ldz[i]);
+                        for (int i = 0; i < rd.Count; i++)
+                            rpts[i] = new PointD(rpts[i].X, rpts[i].Y, rdz[i]);
+                        cpt = new PointD(cpt.X,cpt.Y,cptz);
+
+                        cs.Points = lpts;
+                        if(cidx>0)
+                            cs.Points.Add(cpt);
+                        cs.Points.AddRange(rpts);
+                        rvr.XSectoin.Add(cs);
+                    }
                     res.Add(rvr);
                 }
                 foreach (var rv in res)

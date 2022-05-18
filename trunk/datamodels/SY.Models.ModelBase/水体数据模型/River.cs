@@ -10,5 +10,6 @@ namespace SY.Models.ModelBase
     {
         public List<River> UpRvr { get; set; }
         public List<River> DnRvr { get; set; }
+        public List<Crosssection> XSectoin { get; set; }
     }
 }

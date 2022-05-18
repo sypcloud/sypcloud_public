@@ -44,7 +44,7 @@ namespace SY.Models.ModelBase
         public List<HECCrossSection> CSCollection { get; set; }
     }
 
-    public class HECCrossSection
+    public class HECCrossSection:Crosssection
     {
         /// <summary>
         /// 0-,1-桩号,
@@ -52,7 +52,6 @@ namespace SY.Models.ModelBase
         public string[] Location { get; set; }
         public string Description { get; set; }
         public string LastEditedTime { get; set; }
-        public List<PointD> Data { get; set; }
         public string Manning { get; set; }
         public string ManningSta { get; set; }
         public string XS_HTab_Starting { get; set; }
