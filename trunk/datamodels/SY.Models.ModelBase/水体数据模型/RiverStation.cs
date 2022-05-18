@@ -6,6 +6,9 @@ using System.Threading.Tasks;
 
 namespace SY.Models.ModelBase
 {
+    /// <summary>
+    /// 移除，归到riverbase类
+    /// </summary>
     public class RiverStation
     {
         public string riverName { get; set; }

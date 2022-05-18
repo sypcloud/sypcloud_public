@@ -101,10 +101,13 @@
     <Compile Include="气象数据模型\IWeather.cs" />
     <Compile Include="气象数据模型\Weather.cs" />
     <Compile Include="水体数据模型\BoundaryBase.cs" />
+    <Compile Include="水体数据模型\Culvert.cs" />
     <Compile Include="水体数据模型\Gate.cs" />
     <Compile Include="水体数据模型\HydraulicStructure.cs" />
     <Compile Include="水体数据模型\ISource.cs" />
     <Compile Include="水体数据模型\ITSData2D.cs" />
+    <Compile Include="水体数据模型\River.cs" />
+    <Compile Include="水体数据模型\RiverBase.cs" />
     <Compile Include="水体数据模型\RiverStation.cs" />
     <Compile Include="水体数据模型\Source.cs" />
     <Compile Include="水体数据模型\TSData2D.cs" />

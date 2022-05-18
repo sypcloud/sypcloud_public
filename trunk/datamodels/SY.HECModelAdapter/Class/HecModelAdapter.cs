@@ -40,13 +40,15 @@ namespace SY.HECModelAdapter
 
         public HecModelAdapter(string folderPath)
         {
+            ProjectDir = folderPath;
             //wf （1）在Boundary类里扩展
             //    (2) 实现一个HecModelAdapter构造函数，增加一个属性 List<Boundary>
             //    (3) 传入一个目录，首先读取prj文件，然后确认u0x和p0x文件，读取数据填充到List<Boundary>属性中，供贾总调用。
             BoundaryList = new List<Boundary>();
             try
             {
-                //遍历目录下全部文件，找到第一个*.prj工程文件路径
+                #region//获取文件配置信息
+                // 遍历目录下全部文件，找到第一个*.prj工程文件路径
                 DirectoryInfo tDir = new DirectoryInfo(folderPath);
                 FileInfo tPrjFile1 = null;
                 foreach (FileInfo tfi in tDir.GetFiles("*.prj"))
@@ -62,7 +64,6 @@ namespace SY.HECModelAdapter
 
                 string projectRootNameWithoutExtension = tPrjFile1.Name.Replace(".prj", "");
 
-
                 //step1 读取prj文件，获取Current Plan的值
                 string currentPlanExtension = "";
                 {
@@ -70,7 +71,7 @@ namespace SY.HECModelAdapter
                     string[] lines = System.IO.File.ReadAllLines(tPrjFile1.FullName);
                     foreach (string line1 in lines)
                     {
-                        if(line1.Contains("Proj Title="))
+                        if (line1.Contains("Proj Title="))
                         {
                             ProjTitle = line1.Replace("Proj Title=", "");
                         }
@@ -78,19 +79,24 @@ namespace SY.HECModelAdapter
                         {
                             PlanFile = ProjTitle + "." + line1.Replace("Current Plan=", "");
                         }
-                        if(line1.Contains("Geom File="))
+                        if (line1.Contains("Geom File="))
                         {
-                            Geofile = ProjTitle+"."+ line1.Replace("Geom File=", "");
+                            Geofile = ProjTitle + "." + line1.Replace("Geom File=", "");
                         }
                     }
                 }
                 string currentPlanFilepath = tPrjFile1.DirectoryName + @"\" + PlanFile;
+                #endregion
 
+                #region//解析拓扑信息
+                ModelTopo = GetGeometry(Path.Combine(ProjectDir, Geofile));
+                #endregion
 
+                #region//解析模拟方案信息
                 //step2 读取Current Plan 的 Simulation Date
                 //如果plan文件模拟时间为空，默认赋值2022-1-1 00:00:00
-                DateTime startDt = new DateTime(2022, 1, 1, 0, 0, 0);
-                DateTime stopDt = new DateTime(2022, 1, 1, 0, 0, 0);
+                //DateTime startDt = new DateTime(2022, 1, 1, 0, 0, 0);
+                //DateTime stopDt = new DateTime(2022, 1, 1, 0, 0, 0);
                 string flowFileExtentsion = "";
                 {
                     string[] lines = System.IO.File.ReadAllLines(currentPlanFilepath);
@@ -123,8 +129,8 @@ namespace SY.HECModelAdapter
                                     stopMinu = int.Parse(tempParts[3].Substring(3, 2));
                                     stopSec = int.Parse(tempParts[3].Substring(6, 2));
 
-                                    startDt = new DateTime(startYear, startMon, startDay, startHour, startMinu, startSec);
-                                    stopDt = new DateTime(stopYear, stopMon, stopDay, stopHour, stopMinu, stopSec);
+                                    SimulationStartTime = new DateTime(startYear, startMon, startDay, startHour, startMinu, startSec);
+                                    SimulationEndTime = new DateTime(stopYear, stopMon, stopDay, stopHour, stopMinu, stopSec);
                                 }
                             }
                         }
@@ -134,6 +140,9 @@ namespace SY.HECModelAdapter
                         }
                     }
                 }
+                #endregion
+
+                #region//解析边界信息
 
                 //step3 读取Unsteady File 文件中的 Boundary数据
                 if (flowFileExtentsion.Equals(""))
@@ -147,12 +156,15 @@ namespace SY.HECModelAdapter
                     {
                         if (lines[iline].Contains("Boundary Location="))
                         {
-                            Boundary tBoundary = makeBoundaryByLines(lines, iline, startDt);
-                            if(tBoundary!=null)
+                            Boundary tBoundary = makeBoundaryByLines(lines, iline, SimulationStartTime);
+                            if (tBoundary != null)
                                 BoundaryList.Add(tBoundary);
                         }
                     }
                 }
+
+                #endregion
+
 
             }
             catch (Exception ex)
@@ -521,7 +533,39 @@ namespace SY.HECModelAdapter
                 string line = string.Empty;
                 while (!sr.EndOfStream)
                 {
-                    if (line.Trim().StartsWith("River Reach"))
+                    //读取连接点
+                    if (line.Trim().StartsWith("Junct Name"))
+                    {
+                        var jc = new Junctor();
+                        var st = line.Split('=')[1];
+                        jc.Name = st.Trim();
+                        jc.Desc = sr.ReadLine().Split('=')[1].Split(',');
+                        var loc = sr.ReadLine().Split('=')[1].Split(',');
+                        jc.Location = new PointD(double.Parse(loc[0]), double.Parse(loc[1]));
+                        jc.TextLocation = new PointD(double.Parse(loc[2]), double.Parse(loc[3]));
+                        jc.UpRiverReach = new List<string[]>();
+                        jc.DownRiverReach = new List<string[]>();
+                        jc.JuctionLengthAndAngle = new List<double[]>();
+                        line = sr.ReadLine();
+                        while ((line.Trim()).StartsWith("Up River"))
+                        {
+                            jc.UpRiverReach.Add(line.Split('=')[1].Split(','));
+                            line = sr.ReadLine();
+                        }
+                        while ((line.Trim()).StartsWith("Dn River"))
+                        {
+                            jc.DownRiverReach.Add(line.Split('=')[1].Split(','));
+                            line = sr.ReadLine();
+                        }
+                        while ((line.Trim()).StartsWith("Junc L&A"))
+                        {
+                            jc.JuctionLengthAndAngle.Add((line.TrimEnd(',').Split('=')[1].Split(',')).Select(r => double.Parse(r)).ToArray());
+                            line = sr.ReadLine();
+                        }
+                        hecModel.JunctCollection.Add(jc);
+                    }
+                    //读取河段及断面
+                    else if (line.Trim().StartsWith("River Reach"))
                     {
                         var rr = new RiverReach();
                         var st = line.Split('=')[1].Split(',');
@@ -583,7 +627,7 @@ namespace SY.HECModelAdapter
                                 cs.LastEditedTime = line;
 
                                 JumpUnuseLine(ref sr, ref line);
-                            }                            
+                            }
                             if (line.StartsWith("#Sta/Elev"))
                             {
                                 cs.Data = new List<Sy.Global.PointD>();
@@ -623,7 +667,7 @@ namespace SY.HECModelAdapter
                                 JumpUnuseLine(ref sr, ref line);
                             }
 
-                            if(line.StartsWith("XS HTab Horizontal Distribution"))
+                            if (line.StartsWith("XS HTab Horizontal Distribution"))
                             {
                                 JumpUnuseLine(ref sr, ref line);
                             }
@@ -994,14 +1038,14 @@ namespace SY.HECModelAdapter
             }
         }
 
-        public string Geo2Json(HEC_DM hecdm,string jsonfile)
+        public string Geo2Json(HEC_DM hecdm, string jsonfile)
         {
             try
             {
                 var shp = Path.Combine(Path.GetDirectoryName(jsonfile),
                     Path.GetFileNameWithoutExtension(jsonfile) + "-shp.shp");
                 Utility.Utility.CreatePolylineShp(hecdm, shp);
-                
+
                 var json = Utility.Utility.ConvertShp2JsonFileEx4(shp);
                 File.WriteAllText(jsonfile, json);
                 return json;
@@ -1016,11 +1060,114 @@ namespace SY.HECModelAdapter
             }
         }
 
+        public string Geo2Json(List<River> riverdm, string jsonfile)
+        {
+            try
+            {
+                var shp = Path.Combine(Path.GetDirectoryName(jsonfile),
+                    Path.GetFileNameWithoutExtension(jsonfile) + "-shp.shp");
+                Utility.Utility.CreatePolylineShp(riverdm, shp);
+
+                var json = Utility.Utility.ConvertShp2JsonFileEx4(shp);
+                File.WriteAllText(jsonfile, json);
+                return json;
+            }
+            catch (Exception ex)
+            {
+                if (OutputMsg != null)
+                {
+                    OutputMsg(new MessageInfo() { Tag = 0, Message = ex.Message });
+                }
+                return null;
+            }
+        }
+
+        public List<River> GetRiverInfo(HEC_DM hecdm)
+        {
+            try
+            {
+                var res = new List<River>();
+                foreach (var rv in hecdm.RiverReachCollection)
+                {
+                    var rvr = new River();
+                    rvr.RvrName = rv.RiverName;
+                    rvr.RchName = rv.ReachName;
+                    rvr.Points = rv.Points;
+                    rvr.RvrMdCode = rv.RiverName + "&" + rv.ReachName;
+                    rvr.StChainage = float.Parse(rv.CSCollection.Last().Location[1].Replace("*", ""));
+                    rvr.EdChainage = float.Parse(rv.CSCollection.Last().Location[0].Replace("*", ""));
+                    res.Add(rvr);
+                }
+                foreach (var rv in res)
+                {
+                    //找上游河段
+                    var qup = (from r in hecdm.JunctCollection
+                               from x in r.DownRiverReach
+                               where rv.RvrName == x[0].Trim() && rv.RchName == x[1].Trim()
+                               select r);
+                    if (qup.Count() > 0) rv.UpRvr = new List<River>();
+                    //foreach (var q in qup)
+                    //{
+                    ////找连接桩号
+                    //var qdir = (from r in hecdm.JunctCollection
+                    //            from x in r.DownRiverReach
+                    //            where q[0].Trim() == x[0].Trim() && q[1].Trim() == x[1].Trim()
+                    //            select x).ToList<string[]>();
+                    //if (qdir.Count > 0)
+                    //{
+                    //    var qc = from r in qdir
+                    //             where rv.RvrName == r[0].Trim() && rv.RchName == r[1].Trim()
+                    //             select r;
+                    //    if (qc.Count() > 0)//下游相连
+                    //    {
+
+                    //    }
+                    //}
+                    foreach (var qd in qup)
+                    {
+                        foreach (var q in qd.UpRiverReach)
+                        {
+                            rv.UpRvr.Add((from r in res where r.RvrName == q[0].Trim() && r.RchName == q[1].Trim() select r).FirstOrDefault());
+                        }
+                    }
+                    //rv.UpRvr.Add((from r in res where r.RvrName == q[0].Trim() && r.RchName == q[1].Trim() select r).FirstOrDefault());
+                    //}
+                    //找下游河段
+                    var qdwn = (from r in hecdm.JunctCollection
+                                from x in r.UpRiverReach
+                                where rv.RvrName == x[0].Trim() && rv.RchName == x[1].Trim()
+                                select r);
+                    if (qdwn.Count() > 0) rv.DnRvr = new List<River>();
+                    foreach (var qd in qdwn)
+                    {
+                        foreach (var q in qd.DownRiverReach)
+                        {
+                            rv.DnRvr.Add((from r in res where r.RvrName == q[0].Trim() && r.RchName == q[1].Trim() select r).FirstOrDefault());
+                        }
+                    }
+                }
+                return res;
+            }
+            catch (Exception ex)
+            {
+                CommonUtility.Log("GetRiverInfo:" + ex.Message);
+                return null;
+            }
+        }
+
         public List<Boundary> BoundaryList { get; set; }
+        public string ProjectDir { get; set; }
         public string Geofile { get; set; }
         public string ProjTitle { get; set; }
         public string PlanFile { get; set; }
 
+        public DateTime SimulationStartTime { get; set; }
+        public DateTime SimulationEndTime { get; set; }
+        /// <summary>
+        /// 单位：秒
+        /// </summary>
+        public float TimeInterval { get; set; }
+        public HEC_DM ModelTopo { get; set; }
 
         private void runModelInBackgroud(string controlfile)
         {
@@ -1183,7 +1330,7 @@ namespace SY.HECModelAdapter
             return boundary;
         }
 
-        private string[] readHecDataTable(ref StreamReader sr, int ptsno, int colums=4)
+        private string[] readHecDataTable(ref StreamReader sr, int ptsno, int colums = 4)
         {
             var pts = new string[ptsno];
             for (int i = 0; i < ptsno; i++)
@@ -1208,7 +1355,7 @@ namespace SY.HECModelAdapter
         private void JumpUnuseLine(ref StreamReader sr, ref string line)
         {
             line = sr.ReadLine();
-            while (line == "" || line == "\r\n" || line.Length==0)
+            while (line == "" || line == "\r\n" || line.Length == 0)
             {
                 line = sr.ReadLine();
                 continue;

@@ -33,21 +33,22 @@ namespace SY.Models.ModelBase
         /// 跟上游河段个数一致,double[]--0为length;1为angle
         /// </summary>
         public List<double[]> JuctionLengthAndAngle { get; set; }
-
     }
 
-    public class RiverReach
+    public class RiverReach : River
     {
         public string RiverName { get; set; }
-        public string ReachName { get; set; }
+        public string ReachName { get; set; }    
         
-        public List<PointD> Points { get; set; }
         public PointD TextLocation { get; set; }
         public List<HECCrossSection> CSCollection { get; set; }
     }
 
     public class HECCrossSection
     {
+        /// <summary>
+        /// 0-,1-桩号,
+        /// </summary>
         public string[] Location { get; set; }
         public string Description { get; set; }
         public string LastEditedTime { get; set; }
