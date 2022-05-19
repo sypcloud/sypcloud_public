@@ -11,6 +11,10 @@ namespace SY.Models.ModelBase
     {
         public string RvrMdCode { get; set; }
         public string TopoID { get; set; }
+        /// <summary>
+        /// 河流中文名称
+        /// </summary>
+        public string Name { get; set; }
         public string RvrName { get; set; }
         public string RchName { get; set; }
         public float StChainage { get; set; }

@@ -1068,9 +1068,11 @@ namespace SY.HECModelAdapter
                     Path.GetFileNameWithoutExtension(jsonfile) + "-shp.shp");
                 Utility.Utility.CreateRiverNetPolylineShp(riverdm, shp);
 
-                var json = Utility.Utility.ConvertShp2JsonFileEx4(shp);
-                File.WriteAllText(jsonfile, json);
-                return json;
+                Utility.Utility.ConvertShp2GeoJson(shp, jsonfile);
+
+                //var json = Utility.Utility.ConvertShp2JsonFileEx4(shp);
+                //File.WriteAllText(jsonfile, json);
+                return File.ReadAllText(jsonfile);
             }
             catch (Exception ex)
             {
@@ -1090,9 +1092,12 @@ namespace SY.HECModelAdapter
                     Path.GetFileNameWithoutExtension(jsonfile) + "-shp.shp");
                 Utility.Utility.CreateRiverXSPolylineShp(riverdm, shp);
 
-                var json = Utility.Utility.ConvertShp2JsonFileEx4(shp);
-                File.WriteAllText(jsonfile, json);
-                return json;
+                //var json = Utility.Utility.ConvertShp2JsonFileEx4(shp);
+                //File.WriteAllText(jsonfile, json);
+
+                Utility.Utility.ConvertShp2GeoJson(shp, jsonfile);
+
+                return File.ReadAllText(jsonfile); 
             }
             catch (Exception ex)
             {
