@@ -1060,7 +1060,7 @@ namespace SY.HECModelAdapter
             }
         }
 
-        public string Geo2Json(List<River> riverdm, string jsonfile)
+        public string  Geo2Json(List<River> riverdm, string jsonfile)
         {
             try
             {
@@ -1080,6 +1080,7 @@ namespace SY.HECModelAdapter
                 {
                     OutputMsg(new MessageInfo() { Tag = 0, Message = ex.Message });
                 }
+                CommonUtility.Log("Geo2Json:" + ex.Message);
                 return null;
             }
         }
@@ -1105,6 +1106,7 @@ namespace SY.HECModelAdapter
                 {
                     OutputMsg(new MessageInfo() { Tag = 0, Message = ex.Message });
                 }
+                CommonUtility.Log("Crossection2Json:" + ex.Message);
                 return null;
             }
         }
