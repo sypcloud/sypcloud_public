@@ -7,11 +7,18 @@ using Sy.Global;
 
 namespace SY.Models.ModelBase
 {
-    public enum StructureSectionType
+    public enum eumStructureSectionType
     {
         Rectangular=0,
         Cicular=1,
         Irregular =2,
+    }
+    public enum eumStructureFlowDir
+    {
+        Positive=0,
+        Negative=-1,
+        Bidirection=1,
+        Noflow=2
     }
     public class HydraulicStructure
     {        
@@ -34,6 +41,8 @@ namespace SY.Models.ModelBase
         public List<float> Level { get; set; }
         public List<float> Width { get; set; }
 
-        public StructureSectionType SectionType { get; set; }
+        public eumStructureSectionType SectionType { get; set; }
+
+        public eumStructureFlowDir FlowDir { get; set; }
     }
 }
