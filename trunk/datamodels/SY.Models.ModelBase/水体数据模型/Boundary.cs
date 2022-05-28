@@ -136,5 +136,14 @@ namespace SY.Models.ModelBase
 
         [DataMember]
         public RiverStation Location3 { get; set; }
+
+        /// <summary>
+        /// 示例如下：
+        /// 1HOUR
+        /// 1MONTH
+        /// 1YEAR
+        /// </summary>
+        [DataMember]
+        public string IntervalStr { get; set; }
     }
 }

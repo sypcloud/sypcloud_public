@@ -83,6 +83,12 @@ namespace SY.HECModelAdapter
                         {
                             Geofile = ProjTitle + "." + line1.Replace("Geom File=", "");
                         }
+                        /// boundaryFile
+                        /// 赋值 BoundaryFile 属性
+                        if(line1.Contains("Unsteady File="))
+                        {
+                            BoundaryFile = ProjTitle + "." + line1.Replace("Unsteady File=", "");
+                        }
                     }
                 }
                 string currentPlanFilepath = tPrjFile1.DirectoryName + @"\" + PlanFile;
@@ -173,6 +179,73 @@ namespace SY.HECModelAdapter
             }
 
         }
+
+
+        /// <summary>
+        /// 将边界条件数据写入边界文件（类似u01或者u02文件）,注意只写入Boundary Location数据，其他数据从源文件保留 2022-5-28
+        /// </summary>
+        /// <param name="boundaryList"></param>
+        public void SetBoundary( List<Boundary> boundaryList  )
+        {
+            /// boundaryList 写到 BoundaryFile 文件里。
+            /// 
+
+            if( this.BoundaryFile == null || this.BoundaryFile.Equals(""))
+            {
+                if (OutputMsg != null)
+                {
+                    OutputMsg(new MessageInfo() { Tag = 0, Message = "BoundaryFile文件路径无效" });
+                }
+            }
+
+            try
+            {
+                //step1
+                string tBoundaryFilepath = ProjectDir + @"\" + BoundaryFile;
+                string[] lines = System.IO.File.ReadAllLines(tBoundaryFilepath);
+                List<string> newFileLines = new List<string>();
+                int stepTwoLineOffset = -1;
+                for (int iline = 0; iline < lines.Length; ++iline)
+                {
+                    if (lines[iline].Contains("Boundary Location="))
+                    {
+                        //第一次出现 Boundary Location= 跳出循环，进入下一步写入 BoundaryList数据
+                        stepTwoLineOffset = iline;
+                        break;
+                    }
+                    else
+                    {
+                        newFileLines.Add(lines[iline]);
+                    }
+                }
+
+                if( stepTwoLineOffset<0)
+                {
+                    throw new Exception("没有找到Boundary Location");
+                }
+
+                //step2 
+                for(int iboundary = 0; iboundary < boundaryList.Count; ++iboundary)
+                {
+                    string[] boundaryLines1 = writeBoundaryToLines(boundaryList[iboundary]);
+                    for(int il = 0; il < boundaryLines1.Length ; ++ il )
+                    {
+                        newFileLines.Add(boundaryLines1[il]);
+                    }
+                }
+
+                //step3 写入老文件
+                System.IO.File.WriteAllLines(tBoundaryFilepath, newFileLines);
+            }
+            catch(Exception ex)
+            {
+                if (OutputMsg != null)
+                {
+                    OutputMsg(new MessageInfo() { Tag = 0, Message = ex.Message });
+                }
+            }
+        }
+
 
         public bool RunModel(string controlfile)
         {
@@ -1249,6 +1322,9 @@ namespace SY.HECModelAdapter
         public string ProjTitle { get; set; }
         public string PlanFile { get; set; }
 
+        //wf
+        public string BoundaryFile { get; set; }
+
         public DateTime SimulationStartTime { get; set; }
         public DateTime SimulationEndTime { get; set; }
         /// <summary>
@@ -1382,6 +1458,7 @@ namespace SY.HECModelAdapter
                     throw new Exception("无效的时间间隔字符串'" + intervalStr + "'");
                 }
             }
+            boundary.IntervalStr = intervalStr;
 
             int numVal = 0;
             string line3 = lines[startOffset + 2];
@@ -1416,6 +1493,118 @@ namespace SY.HECModelAdapter
                 }
             }
             return boundary;
+        }
+
+        /// <summary>
+        /// 小于16字符填补到16个字符，反之完整输出
+        /// </summary>
+        /// <param name="tstr"></param>
+        /// <returns></returns>
+        private string padding16(string tstr)
+        {
+            if( tstr.Length<16)
+            {
+                string newStr = tstr;
+                for(int i = tstr.Length; i<16; ++ i)
+                {
+                    newStr += " ";
+                }
+                return newStr;
+            }
+            else
+            {
+                return tstr;
+            }
+        }
+
+        private string padding8(string tstr)
+        {
+            if (tstr.Length < 8)
+            {
+                string newStr = tstr;
+                for (int i = tstr.Length; i < 8; ++i)
+                {
+                    newStr += " ";
+                }
+                return newStr;
+            }
+            else
+            {
+                return tstr;
+            }
+        }
+
+        private string padding32(string tstr)
+        {
+            if (tstr.Length < 32)
+            {
+                string newStr = tstr;
+                for (int i = tstr.Length; i < 32; ++i)
+                {
+                    newStr += " ";
+                }
+                return newStr;
+            }
+            else
+            {
+                return tstr;
+            }
+        }
+
+        private string paddingLeft8(float val)
+        {
+            return string.Format("{0,8:F}", val);
+        }
+
+
+        private string[] writeBoundaryToLines(Boundary theBoundary )
+        {
+            List<string> tNewLines = new List<string>();
+            tNewLines.Add("Boundary Location="
+                + padding16(theBoundary.Location3.riverName) + ","
+                + padding16(theBoundary.Location3.reachName) + ","
+                + padding8(theBoundary.Location3.station)+","
+                + padding8("") + ","
+                + padding16("") + ","
+                + padding16("") + ","
+                + padding16("") + ","
+                + padding32("") 
+                ) ;
+            tNewLines.Add("Interval=" + theBoundary.IntervalStr );
+            if( theBoundary.HDType == enumHDBoundaryType.流量 )
+            {
+                tNewLines.Add("Flow Hydrograph=" + theBoundary.Value.Count );
+            }
+            else if(theBoundary.HDType == enumHDBoundaryType.水位)
+            {
+                tNewLines.Add("Stage Hydrograph=" + theBoundary.Value.Count);
+            }
+            else
+            {
+                throw new Exception("不支持的边界类型'" + theBoundary.HDType.ToString() + "'");
+            }
+            int nlines = (int) Math.Ceiling( theBoundary.Value.Count * 1.0 / 10.0 ) ;
+            for(int iline = 0; iline < nlines; ++ iline )
+            {
+                string tline1 = "";
+                for(int iv = 0; iv < 10; ++ iv )
+                {
+                    if( iline*10+iv < theBoundary.Value.Count)
+                    {
+                        tline1 += paddingLeft8( theBoundary.Value[iline * 10 + iv].Data );
+                    }
+                    
+                }
+                tNewLines.Add(tline1);
+            }
+            tNewLines.Add("DSS Path =");
+            tNewLines.Add("Use DSS = False");
+            tNewLines.Add("Use Fixed Start Time = False");
+            tNewLines.Add("Fixed Start Date / Time =,");
+            tNewLines.Add("Is Critical Boundary = False");
+            tNewLines.Add("Critical Boundary Flow =");
+
+            return tNewLines.ToArray() ;
         }
 
         private string[] readHecDataTable(ref StreamReader sr, int ptsno, int colums = 4)
