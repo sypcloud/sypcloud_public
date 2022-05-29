@@ -198,6 +198,11 @@ namespace SY.HECModelAdapter
                 }
             }
 
+            if( this.BoundaryList != boundaryList)
+            {
+                this.BoundaryList = boundaryList;
+            }
+
             try
             {
                 //step1
@@ -1553,7 +1558,7 @@ namespace SY.HECModelAdapter
 
         private string paddingLeft8(float val)
         {
-            return string.Format("{0,8:F}", val);
+            return string.Format("{0,8}", val);
         }
 
 
@@ -1597,12 +1602,12 @@ namespace SY.HECModelAdapter
                 }
                 tNewLines.Add(tline1);
             }
-            tNewLines.Add("DSS Path =");
-            tNewLines.Add("Use DSS = False");
-            tNewLines.Add("Use Fixed Start Time = False");
-            tNewLines.Add("Fixed Start Date / Time =,");
-            tNewLines.Add("Is Critical Boundary = False");
-            tNewLines.Add("Critical Boundary Flow =");
+            tNewLines.Add("DSS Path=");
+            tNewLines.Add("Use DSS=False");
+            tNewLines.Add("Use Fixed Start Time=False");
+            tNewLines.Add("Fixed Start Date/Time=,");
+            tNewLines.Add("Is Critical Boundary=False");
+            tNewLines.Add("Critical Boundary Flow=");
 
             return tNewLines.ToArray() ;
         }

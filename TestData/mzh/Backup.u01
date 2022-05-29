@@ -1,0 +1,37 @@
+Flow Title=UFlow
+Program Version=5.07
+Use Restart= 0 
+Boundary Location=maozhouhe       ,maozhouhe       ,31430.88,        ,                ,                ,                ,                                
+Interval=1HOUR
+Flow Hydrograph= 13 
+       5       5       5       5       5       5       5       5       5       5
+       5       5       5
+DSS Path=
+Use DSS=False
+Use Fixed Start Time=False
+Fixed Start Date/Time=,
+Is Critical Boundary=False
+Critical Boundary Flow=
+Boundary Location=maozhouhe       ,01              ,0       ,        ,                ,                ,                ,                                
+Interval=1HOUR
+Stage Hydrograph= 13 
+       1       1       1       1       1       1       1       1       1       1
+       1       1       1
+DSS Path=
+Use DSS=False
+Use Fixed Start Time=False
+Fixed Start Date/Time=,
+Is Critical Boundary=False
+Critical Boundary Flow=
+Boundary Location=yutianhe        ,yutianhe        ,1644    ,        ,                ,                ,                ,                                
+Interval=1HOUR
+Flow Hydrograph= 13 
+       1       1       1       1       1       1       1       1       1       1
+       1       1       1
+DSS Path=
+Use DSS=False
+Use Fixed Start Time=False
+Fixed Start Date/Time=,
+Is Critical Boundary=False
+Critical Boundary Flow=
+Boundary Location=maozhouhe       ,01              ,27500.00,        ,                ,                ,                ,                                

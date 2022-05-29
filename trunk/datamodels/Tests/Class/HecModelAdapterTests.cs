@@ -1,5 +1,6 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using SY.HECModelAdapter;
+using SY.Models.ModelBase;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,21 +12,35 @@ namespace SY.HECModelAdapter.Tests
     [TestClass()]
     public class HecModelAdapterTests
     {
+
+
         [TestMethod()]
         public void RunModelTest()
         {
-            HecModelAdapter hma = null;
-            try
-            {
-                hma = new HecModelAdapter(@"E:\Projects\songmingming-water2022\1river-MCRS(1)(1)\1river-MCRS");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-            }
+            HecModelAdapter adapter = new HecModelAdapter("../../TestData/mzh");
+            Console.WriteLine( adapter.BoundaryList.Count ) ;
 
 
-            Assert.Fail();
+            //单元测试1
+            //adapter.BoundaryList[1].Value[1].Data = 999.0f;
+            //adapter.SetBoundary(adapter.BoundaryList);
+
+
+            //单元测试2
+            //adapter.BoundaryList.RemoveAt(1);
+            //adapter.SetBoundary(adapter.BoundaryList);
+
+            //单元测试3
+            Boundary boundary1 = adapter.BoundaryList[1];
+            adapter.BoundaryList.RemoveAt(1);
+            boundary1.Value[0].Data = 777;
+            boundary1.Value[1].Data = 888;
+            boundary1.Value[2].Data = 999;
+            adapter.BoundaryList.Add(boundary1);
+            adapter.SetBoundary(adapter.BoundaryList);
+
+
+
         }
     }
 }

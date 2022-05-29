@@ -45,10 +45,6 @@
     <Reference Include="Microsoft.VisualStudio.TestPlatform.TestFramework.Extensions, Version=14.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
       <HintPath>..\packages\MSTest.TestFramework.1.3.2\lib\net45\Microsoft.VisualStudio.TestPlatform.TestFramework.Extensions.dll</HintPath>
     </Reference>
-    <Reference Include="SY.HECModelAdapter, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\bin\SY.HECModelAdapter.dll</HintPath>
-    </Reference>
     <Reference Include="System" />
   </ItemGroup>
   <Choose>
@@ -65,6 +61,16 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\SY.HECModelAdapter\SY.HECModelAdapter.csproj">
+      <Project>{dde448e0-b0af-4a93-84e1-a106f35df319}</Project>
+      <Name>SY.HECModelAdapter</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\SY.Models.ModelBase\SY.Models.ModelBase.csproj">
+      <Project>{63eabb22-9033-45c9-9403-02166247d53f}</Project>
+      <Name>SY.Models.ModelBase</Name>
+    </ProjectReference>
   </ItemGroup>
   <Choose>
     <When Condition="'$(VisualStudioVersion)' == '10.0' And '$(IsCodedUITest)' == 'True'">
