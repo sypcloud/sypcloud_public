@@ -101,15 +101,6 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
-    <COMReference Include="MSXML2">
-      <Guid>{F5078F18-C551-11D3-89B9-0000F81FE221}</Guid>
-      <VersionMajor>6</VersionMajor>
-      <VersionMinor>0</VersionMinor>
-      <Lcid>0</Lcid>
-      <WrapperTool>tlbimp</WrapperTool>
-      <Isolated>False</Isolated>
-      <EmbedInteropTypes>True</EmbedInteropTypes>
-    </COMReference>
     <COMReference Include="RAS620">
       <Guid>{9CD8B014-11D5-4F27-8E22-B8DE6CF9326C}</Guid>
       <VersionMajor>3</VersionMajor>
