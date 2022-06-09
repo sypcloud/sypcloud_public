@@ -10,8 +10,9 @@ using SY.Utility;
 using System.Data;
 using System.Configuration;
 using Sy.Global;
-using RAS620;
+using RAS505;
 using System.ComponentModel;
+using System.Threading;
 
 namespace SY.HECModelAdapter
 {
@@ -256,24 +257,36 @@ namespace SY.HECModelAdapter
         {
             try
             {
-                // 启用背景线程计算模型
-                runModelInBackgroud(controlfile);
-                System.Threading.Thread.Sleep(100);
-                // 读取日志
                 var dir = Path.GetDirectoryName(controlfile);
-                var logfile = Directory.GetFiles(dir, ".computeMsgs.txt").FirstOrDefault();
-                while (!isRunOk && File.Exists(logfile))
+                var logfile = Directory.GetFiles(dir, "*.computeMsgs.txt").FirstOrDefault();
+                if (File.Exists(logfile)) File.Delete(logfile);
+                // 启用背景线程计算模型
+                RunModelInBackgroud(controlfile);
+                System.Threading.Thread.Sleep(100);
+                
+                // 读取日志
+                while (!isRunOk)
                 {
-                    using (FileStream fs = new FileStream(logfile, FileMode.Open, FileAccess.Read, FileShare.Read))
+                    logfile = Directory.GetFiles(dir, "*.computeMsgs.txt").FirstOrDefault();
+                    
+                    while (!isRunOk && File.Exists(logfile))
                     {
-                        using (StreamReader sr = new StreamReader(fs))
-                        {
-                            var msg = sr.ReadToEnd();
-                            CommonUtility.Log(msg);
-                            if (OutputMsg != null)
-                                OutputMsg(new MessageInfo() { Tag = 0, Message = msg });
+                        var bakfile = logfile + ".bak";
+                        File.Copy(logfile, bakfile,true);
 
-                        }
+                        using (FileStream fs = new FileStream(bakfile, FileMode.Open, FileAccess.Read, FileShare.Read))
+                        {                            
+                            using (StreamReader sr = new StreamReader(fs))
+                            {
+                                var msg = sr.ReadToEnd();
+                                CommonUtility.Log(msg);
+                                if (OutputMsg != null)
+                                    OutputMsg(new MessageInfo() { Tag = 0, Message = msg });
+                                //sr.Close();
+                                if (msg.Contains("Finished Post Processing")) isRunOk = true;
+                            }
+                            //fs.Close();
+                        }                        
                     }
                 }
 
@@ -281,6 +294,7 @@ namespace SY.HECModelAdapter
             }
             catch (Exception ex)
             {
+                CommonUtility.Log(ex.Message);
                 if (OutputMsg != null)
                 {
                     OutputMsg(new MessageInfo() { Tag = 0, Message = ex.Message });
@@ -1150,7 +1164,7 @@ namespace SY.HECModelAdapter
 
                 //var json = Utility.Utility.ConvertShp2JsonFileEx4(shp);
                 //File.WriteAllText(jsonfile, json);
-                return File.ReadAllText(jsonfile);
+                return File.ReadAllText(jsonfile).Replace("\r\n","").Replace("\n", "").Trim();
             }
             catch (Exception ex)
             {
@@ -1176,7 +1190,7 @@ namespace SY.HECModelAdapter
 
                 Utility.Utility.ConvertShp2GeoJson(shp, jsonfile);
 
-                return File.ReadAllText(jsonfile); 
+                return File.ReadAllText(jsonfile).Replace("\r\n", "").Replace("\n", "").Trim(); 
             }
             catch (Exception ex)
             {
@@ -1338,11 +1352,13 @@ namespace SY.HECModelAdapter
         public float TimeInterval { get; set; }
         public HEC_DM ModelTopo { get; set; }
 
-        private void runModelInBackgroud(string controlfile)
+        public void RunModelInBackgroud(string controlfile)
         {
-            var bgw = new BackgroundWorker();
-            bgw.RunWorkerCompleted += Bgw_RunWorkerCompleted;
-            bgw.DoWork += (sender, e) =>
+            //var bgw = new BackgroundWorker();
+            //bgw.RunWorkerCompleted += Bgw_RunWorkerCompleted;
+            //bgw.DoWork += (sender, e) =>
+            //{
+            new Thread(() =>
             {
                 HECRASController heccore = new HECRASController();
                 int nmsg = 0;
@@ -1356,9 +1372,9 @@ namespace SY.HECModelAdapter
                 heccore.Project_Save();
                 heccore.Project_Close();
                 heccore.QuitRas();
-
                 isRunOk = true;
-            };
+            }).Start();
+            //};
         }
 
         private void Bgw_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)

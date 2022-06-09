@@ -101,9 +101,9 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
-    <COMReference Include="RAS620">
-      <Guid>{9CD8B014-11D5-4F27-8E22-B8DE6CF9326C}</Guid>
-      <VersionMajor>3</VersionMajor>
+    <COMReference Include="RAS505">
+      <Guid>{27F52CF2-7F01-4A16-BFA0-6232651F6350}</Guid>
+      <VersionMajor>1</VersionMajor>
       <VersionMinor>0</VersionMinor>
       <Lcid>0</Lcid>
       <WrapperTool>tlbimp</WrapperTool>
