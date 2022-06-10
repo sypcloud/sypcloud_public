@@ -20,7 +20,8 @@ namespace SY.HECModelAdapter
     {
         private static Configuration config = null;
         private string pythonEngine;
-        private bool isRunOk = false;
+        private static bool isRunOk = false;
+        //private static List<string> calmsg = new List<string>();
 
         /// <summary>
         /// 发送信息数据
@@ -278,11 +279,24 @@ namespace SY.HECModelAdapter
                         {                            
                             using (StreamReader sr = new StreamReader(fs))
                             {
-                                var msg = sr.ReadToEnd();
-                                CommonUtility.Log(msg);
-                                if (OutputMsg != null)
-                                    OutputMsg(new MessageInfo() { Tag = 0, Message = msg });
-                                //sr.Close();
+                                var prgs = new List<string>();
+                                var msg = string.Empty;
+                                while (!sr.EndOfStream)
+                                {
+                                    msg = sr.ReadLine();
+                                    //if (msg.StartsWith("Progress"))
+                                    {
+                                        prgs.Add(msg);
+                                    }
+                                }
+                                //prgs.Add(msg);
+
+                                if (prgs.Count > 0)
+                                {
+                                    //CommonUtility.Log(prgs.Last());
+                                    if (OutputMsg != null)
+                                        OutputMsg(new MessageInfo() { Tag = 0, Message = prgs.Last() });
+                                }
                                 if (msg.Contains("Finished Post Processing")) isRunOk = true;
                             }
                             //fs.Close();
@@ -301,6 +315,41 @@ namespace SY.HECModelAdapter
                 }
                 return false;
             }
+        }
+        /// <summary>
+        /// 进一步优化为每次只返回上次未返回的信息
+        /// </summary>
+        /// <param name="dir"></param>
+        /// <returns></returns>
+        public string GetCalMsg(string dir)
+        {
+            var data = string.Empty;
+            isRunOk = false;
+
+            while (!isRunOk)
+            {
+                var logfile = Directory.GetFiles(dir, "*.computeMsgs.txt", SearchOption.AllDirectories).FirstOrDefault();
+                CommonUtility.Log(logfile);
+                while (!isRunOk && File.Exists(logfile))
+                {
+                    var bakfile = logfile + ".bak2";
+                    File.Copy(logfile, bakfile, true);
+
+                    using (FileStream fs = new FileStream(bakfile, FileMode.Open, FileAccess.Read, FileShare.Read))
+                    {
+                        using (StreamReader sr = new StreamReader(fs))
+                        {
+                            data = sr.ReadToEnd();
+                            isRunOk = true;                           
+                        }
+                    }
+                    break;
+                }
+            }
+
+            //if (isRunOk) data = "计算已结束！";
+
+            return data;
         }
 
         public void GenerateGemetryFileByShp(string shpfile, string geoFile, double tolerence)
