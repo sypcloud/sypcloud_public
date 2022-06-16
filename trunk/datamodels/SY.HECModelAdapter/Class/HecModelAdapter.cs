@@ -113,7 +113,7 @@ namespace SY.HECModelAdapter
                         if (line1.Contains("Simulation Date="))
                         {
                             string tempSD = line1.Replace("Simulation Date=", "");
-                            if (tempSD.Length >= 37)
+                            //if (tempSD.Length >= 37)
                             {
                                 string[] tempParts = tempSD.Split(',');
                                 if (tempParts.Length == 4)
@@ -122,20 +122,20 @@ namespace SY.HECModelAdapter
                                     int startHour, startMinu, startSec, stopHour, stopMinu, stopSec;
                                     ConvertDateStr2YMD(tempParts[0], out startYear, out startMon, out startDay);
                                     ConvertDateStr2YMD(tempParts[2], out stopYear, out stopMon, out stopDay);
-                                    if (tempParts[1].Length != 8)
-                                    {
-                                        throw new Exception("无效的开始时间");
-                                    }
-                                    if (tempParts[3].Length != 8)
-                                    {
-                                        throw new Exception("无效的结束时间");
-                                    }
-                                    startHour = int.Parse(tempParts[1].Substring(0, 2));
-                                    startMinu = int.Parse(tempParts[1].Substring(3, 2));
-                                    startSec = int.Parse(tempParts[1].Substring(6, 2));
-                                    stopHour = int.Parse(tempParts[3].Substring(0, 2));
-                                    stopMinu = int.Parse(tempParts[3].Substring(3, 2));
-                                    stopSec = int.Parse(tempParts[3].Substring(6, 2));
+                                    //if (tempParts[1].Length != 8)
+                                    //{
+                                    //    throw new Exception("无效的开始时间");
+                                    //}
+                                    //if (tempParts[3].Length != 8)
+                                    //{
+                                    //    throw new Exception("无效的结束时间");
+                                    //}
+                                    startHour = int.Parse(tempParts[1].Split(':')[0]);
+                                    startMinu = int.Parse(tempParts[1].Split(':')[1]);
+                                    startSec = int.Parse(tempParts[1].Split(':')[2]);
+                                    stopHour = int.Parse(tempParts[3].Split(':')[0]);
+                                    stopMinu = int.Parse(tempParts[3].Split(':')[1]);
+                                    stopSec = int.Parse(tempParts[3].Split(':')[2]);
 
                                     SimulationStartTime = new DateTime(startYear, startMon, startDay, startHour, startMinu, startSec);
                                     SimulationEndTime = new DateTime(stopYear, stopMon, stopDay, stopHour, stopMinu, stopSec);
@@ -172,12 +172,10 @@ namespace SY.HECModelAdapter
                 }
 
                 #endregion
-
-
             }
             catch (Exception ex)
             {
-                throw ex;
+                CommonUtility.Log(ex.Message);
             }
 
         }
@@ -1334,7 +1332,7 @@ namespace SY.HECModelAdapter
                                from x in r.DownRiverReach
                                where rv.RvrName == x[0].Trim() && rv.RchName == x[1].Trim()
                                select r);
-                    if (qup.Count() > 0) rv.UpRvr = new List<River>();
+                    if (qup.Count() > 0) rv.UpRvr = new List<string>();
                     //foreach (var q in qup)
                     //{
                     ////找连接桩号
@@ -1356,7 +1354,7 @@ namespace SY.HECModelAdapter
                     {
                         foreach (var q in qd.UpRiverReach)
                         {
-                            rv.UpRvr.Add((from r in res where r.RvrName == q[0].Trim() && r.RchName == q[1].Trim() select r).FirstOrDefault());
+                            rv.UpRvr.Add((from r in res where r.RvrName == q[0].Trim() && r.RchName == q[1].Trim() select r.RvrMdCode).FirstOrDefault());
                         }
                     }
                     //rv.UpRvr.Add((from r in res where r.RvrName == q[0].Trim() && r.RchName == q[1].Trim() select r).FirstOrDefault());
@@ -1366,12 +1364,12 @@ namespace SY.HECModelAdapter
                                 from x in r.UpRiverReach
                                 where rv.RvrName == x[0].Trim() && rv.RchName == x[1].Trim()
                                 select r);
-                    if (qdwn.Count() > 0) rv.DnRvr = new List<River>();
+                    if (qdwn.Count() > 0) rv.DnRvr = new List<string>();
                     foreach (var qd in qdwn)
                     {
                         foreach (var q in qd.DownRiverReach)
                         {
-                            rv.DnRvr.Add((from r in res where r.RvrName == q[0].Trim() && r.RchName == q[1].Trim() select r).FirstOrDefault());
+                            rv.DnRvr.Add((from r in res where r.RvrName == q[0].Trim() && r.RchName == q[1].Trim() select r.RvrMdCode).FirstOrDefault());
                         }
                     }
                 }
@@ -1468,17 +1466,7 @@ namespace SY.HECModelAdapter
         private Boundary makeBoundaryByLines(string[] lines, int startOffset, DateTime startDt)
         {
             Boundary boundary = new Boundary();
-            string line1 = lines[startOffset].Replace("Boundary Location=", "");
-            {
-                string[] parts = line1.Split(',');
-                if (parts.Length < 3)
-                {
-                    throw new Exception("无效的Boundary Location");
-                }
-                boundary.Location3.riverName = parts[0].Trim();
-                boundary.Location3.reachName = parts[1].Trim();
-                boundary.Location3.station = parts[2].Trim();
-            }
+            
 
             string intervalStr = lines[startOffset + 1].Replace("Interval=", "");
             TimeSpan timeSpan = new TimeSpan();
@@ -1542,10 +1530,29 @@ namespace SY.HECModelAdapter
                 numVal = int.Parse(line3.Replace("Stage Hydrograph=", ""));
                 boundary.HDType = enumHDBoundaryType.水位;
             }
+            else if (line3.Contains("Uniform Lateral Inflow Hydrograph="))
+            {
+                numVal = int.Parse(line3.Replace("Uniform Lateral Inflow Hydrograph=", ""));
+                boundary.HDType = enumHDBoundaryType.侧向流量;
+            }
             else
             {
                 //throw new Exception("不支持的边界类型'" + line3 + "'");
                 return null;
+            }
+
+            string line1 = lines[startOffset].Replace("Boundary Location=", "");
+            {
+                string[] parts = line1.Split(',');
+                if (parts.Length < 3)
+                {
+                    throw new Exception("无效的Boundary Location");
+                }
+                boundary.Location3.riverName = parts[0].Trim();
+                boundary.Location3.reachName = parts[1].Trim();
+                boundary.Location3.station = parts[2].Trim();
+                if(boundary.HDType == enumHDBoundaryType.侧向流量)
+                    boundary.Location3.station2 = parts[3].Trim();
             }
 
             DateTime currDt = startDt;

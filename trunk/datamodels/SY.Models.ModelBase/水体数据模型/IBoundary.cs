@@ -61,8 +61,9 @@ namespace SY.Models.ModelBase
     {
         陆地边界,
         水位,
-        流量,
-        水位流量关系曲线
+        流量,        
+        水位流量关系曲线,
+        侧向流量,
     }
 
     public enum enumWQBoundaryType

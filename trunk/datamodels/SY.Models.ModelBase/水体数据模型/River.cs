@@ -8,8 +8,14 @@ namespace SY.Models.ModelBase
 {
     public class River : RiverBase
     {
-        public List<River> UpRvr { get; set; }
-        public List<River> DnRvr { get; set; }
+        /// <summary>
+        /// 只存RvrMdCode
+        /// </summary>
+        public List<string> UpRvr { get; set; }
+        /// <summary>
+        /// 只存RvrMdCode
+        /// </summary>
+        public List<string> DnRvr { get; set; }
         public List<Crosssection> XSectoin { get; set; }
     }
 }

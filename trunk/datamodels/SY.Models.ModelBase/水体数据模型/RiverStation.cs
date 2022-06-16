@@ -15,5 +15,7 @@ namespace SY.Models.ModelBase
         public string reachName { get; set; }
 
         public string station { get; set; }
+
+        public string station2 { get; set; }
     }
 }
