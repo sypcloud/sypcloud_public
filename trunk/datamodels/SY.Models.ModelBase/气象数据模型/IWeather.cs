@@ -120,6 +120,7 @@ namespace SY.Models.ModelBase
         [DataMember]
         public float ConstantEvaporation { get; set; }
 
-
+        [DataMember]
+        public List<Rainfall> PrecipitationData { get; set; }
     }
 }

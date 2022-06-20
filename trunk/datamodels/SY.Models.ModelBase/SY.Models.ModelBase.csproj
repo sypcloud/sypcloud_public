@@ -99,6 +99,7 @@
     <Compile Include="HECDataModel\HEC_DM.cs" />
     <Compile Include="天地图数据模型\Tianditu_DistrictQuery_DM.cs" />
     <Compile Include="气象数据模型\IWeather.cs" />
+    <Compile Include="气象数据模型\Rainfall.cs" />
     <Compile Include="气象数据模型\Weather.cs" />
     <Compile Include="水体数据模型\BoundaryBase.cs" />
     <Compile Include="水体数据模型\Culvert.cs" />
