@@ -13,6 +13,8 @@ using Sy.Global;
 using RAS505;
 using System.ComponentModel;
 using System.Threading;
+using SY.CommonDataModel;
+using Hec.Dss;
 
 namespace SY.HECModelAdapter
 {
@@ -76,6 +78,7 @@ namespace SY.HECModelAdapter
                         if (line1.Contains("Proj Title="))
                         {
                             ProjTitle = line1.Replace("Proj Title=", "");
+                            DSSFile = ProjTitle + "." + "dss";
                         }
                         if (line1.Contains("Current Plan="))
                         {
@@ -146,6 +149,18 @@ namespace SY.HECModelAdapter
                         {
                             flowFileExtentsion = line1.Replace("Flow File=", "");
                         }
+                        else if(line1.Contains("Output Interval="))
+                        {
+                            var tmp = line1.Replace("Output Interval=", "");
+                            if(tmp.Contains("HOUR"))
+                                OutputTimeInterval = int.Parse(tmp.Substring(0, tmp.Length - 4))*3600;
+                            else if (tmp.ToUpper().Contains("DAY"))
+                                OutputTimeInterval = int.Parse(tmp.Substring(0, tmp.Length - 3)) * 24*3600;
+                            else if (tmp.ToUpper().Contains("WEEK"))
+                                OutputTimeInterval = int.Parse(tmp.Substring(0, tmp.Length - 4)) * 7*24 * 3600;
+                            //else if (tmp.ToUpper().Contains("MONTH"))
+                            //    OutputTimeInterval = int.Parse(tmp.Substring(0, tmp.Length - 5)) * 24 * 3600;
+                        }
                     }
                 }
                 #endregion
@@ -177,7 +192,6 @@ namespace SY.HECModelAdapter
             {
                 CommonUtility.Log(ex.Message);
             }
-
         }
 
 
@@ -1382,23 +1396,6 @@ namespace SY.HECModelAdapter
             }
         }
 
-        public List<Boundary> BoundaryList { get; set; }
-        public string ProjectDir { get; set; }
-        public string Geofile { get; set; }
-        public string ProjTitle { get; set; }
-        public string PlanFile { get; set; }
-
-        //wf
-        public string BoundaryFile { get; set; }
-
-        public DateTime SimulationStartTime { get; set; }
-        public DateTime SimulationEndTime { get; set; }
-        /// <summary>
-        /// 单位：秒
-        /// </summary>
-        public float TimeInterval { get; set; }
-        public HEC_DM ModelTopo { get; set; }
-
         public void RunModelInBackgroud(string controlfile)
         {
             //var bgw = new BackgroundWorker();
@@ -1423,6 +1420,65 @@ namespace SY.HECModelAdapter
             }).Start();
             //};
         }
+
+        public List<RiverSegStatisctResults> GetStatisticResults()
+        {
+            try
+            {
+                using (var dssr = new DssReader(Path.Combine(ProjectDir,DSSFile),
+                    DssReader.MethodID.MESS_METHOD_GENERAL_ID, DssReader.LevelID.MESS_LEVEL_CRITICAL))
+                {
+                    var rivers = GetRiverInfo(ModelTopo);
+                    foreach (var river in rivers)
+                    {
+                        //直接在这里根据时间、结果保存步长、特征值标识写全path字符串
+                        //按时间遍历取值，赋给RiverSegStatisctResults对象
+                        var path = "/"+river.RvrName.ToUpper()+" "+river.RchName.ToUpper()+ "//LOCATION-ELEV//"; 
+                        DssPathCollection paths = dssr.GetCatalog();
+                        var elevpath = new List<DssPath>();
+                        for (int i = 0; i < paths.Count; i++)
+                        {
+                            if (paths[i].FullPath.Contains(path))
+                            {
+                                elevpath.Add(paths[i]);
+                                var pd = dssr.GetPairedData(paths[i].FullPath);
+                                var stations = pd.Ordinates; //桩号
+                                var waterlevels = pd.Values[0]; //水位
+                            }
+                        }                        
+                    }
+                    
+                }
+                return null;
+            }
+            catch (Exception ex)
+            {
+                CommonUtility.Log("GetStatisticResults:" + ex.Message);
+                return null;
+            }
+        }
+
+        public List<Boundary> BoundaryList { get; set; }
+        public string ProjectDir { get; set; }
+        public string Geofile { get; set; }
+        public string ProjTitle { get; set; }
+        public string PlanFile { get; set; }
+
+        //wf
+        public string BoundaryFile { get; set; }
+        public string DSSFile { get; set; }
+
+        public DateTime SimulationStartTime { get; set; }
+        public DateTime SimulationEndTime { get; set; }
+        /// <summary>
+        /// 单位：秒；计算步长
+        /// </summary>
+        public float ComputationTimeInterval { get; set; }
+        /// <summary>
+        /// 单位：秒；dss结果输出时间步长
+        /// </summary>
+        public float OutputTimeInterval { get; set; }
+        public HEC_DM ModelTopo { get; set; }
 
         private void Bgw_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
@@ -1461,6 +1517,15 @@ namespace SY.HECModelAdapter
                 throw new Exception("无效的月份缩写'" + tmon + "'");
             }
             year = int.Parse(str.Substring(5, 4));
+        }
+        private string ConvertYMD2DateStr(int year, int mon, int day)
+        {//01APR2022 <-> 2022, 4 ,1 
+            
+            var sday = day.ToString().PadLeft(2, '0');
+            string[] monstr = { "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC" };
+            var sm = monstr[mon - 1];
+            var syear = year.ToString();
+            return sday + sm + syear;
         }
 
         private Boundary makeBoundaryByLines(string[] lines, int startOffset, DateTime startDt)
@@ -1632,7 +1697,6 @@ namespace SY.HECModelAdapter
         {
             return string.Format("{0,8}", val);
         }
-
 
         private string[] writeBoundaryToLines(Boundary theBoundary )
         {

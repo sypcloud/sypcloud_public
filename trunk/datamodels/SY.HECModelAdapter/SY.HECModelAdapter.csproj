@@ -67,9 +67,17 @@
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Hec.Dss, Version=1.0.6.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\bin\Hec.Dss.dll</HintPath>
+    </Reference>
     <Reference Include="SY.Common, Version=1.0.0.1648, Culture=neutral, processorArchitecture=x86">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\bin\SY.Common.dll</HintPath>
+    </Reference>
+    <Reference Include="SY.CommonDataModel, Version=1.0.0.1992, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\bin\SY.CommonDataModel.dll</HintPath>
     </Reference>
     <Reference Include="Sy.Global">
       <HintPath>..\..\bin\Sy.Global.dll</HintPath>
@@ -92,6 +100,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Class\HecModelAdapter.cs" />
+    <Compile Include="Class\HMSModelAdapter.cs" />
+    <Compile Include="Class\HmsModelResultsDM.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
