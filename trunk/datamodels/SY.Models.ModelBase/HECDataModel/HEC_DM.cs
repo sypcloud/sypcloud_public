@@ -44,6 +44,9 @@ namespace SY.Models.ModelBase
         public string From_Canvas_X { get; set; }
         public string From_Canvas_Y { get; set; }
         public string Route { get; set; }
+        public float Muskingum_K { get; set; }
+        public float Muskingum_X { get; set; }
+        public int Muskingum_Steps { get; set; }
         public string Channel_Loss { get; set; }
 
     }

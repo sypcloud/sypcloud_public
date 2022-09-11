@@ -20,16 +20,14 @@ namespace SY.HECModelAdapter
 {
     public class HecModelAdapter
     {
+        #region 字段
         private static Configuration config = null;
         private string pythonEngine;
         private static bool isRunOk = false;
         //private static List<string> calmsg = new List<string>();
+        #endregion
 
-        /// <summary>
-        /// 发送信息数据
-        /// </summary>
-        public event OutputMsgHandler OutputMsg;
-
+        #region 构造体
         public HecModelAdapter()
         {
         }
@@ -42,7 +40,7 @@ namespace SY.HECModelAdapter
             pythonEngine = config.AppSettings.Settings["PythonEngine"].Value;
         }
 
-        public HecModelAdapter(string folderPath)
+        public HecModelAdapter(string folderPath, string prjName = "MZH")
         {
             ProjectDir = folderPath;
             //wf （1）在Boundary类里扩展
@@ -55,7 +53,7 @@ namespace SY.HECModelAdapter
                 // 遍历目录下全部文件，找到第一个*.prj工程文件路径
                 DirectoryInfo tDir = new DirectoryInfo(folderPath);
                 FileInfo tPrjFile1 = null;
-                foreach (FileInfo tfi in tDir.GetFiles("*.prj"))
+                foreach (FileInfo tfi in tDir.GetFiles(prjName + ".prj"))
                 {
                     tPrjFile1 = tfi;
                     break;
@@ -90,7 +88,7 @@ namespace SY.HECModelAdapter
                         }
                         /// boundaryFile
                         /// 赋值 BoundaryFile 属性
-                        if(line1.Contains("Unsteady File="))
+                        if (line1.Contains("Unsteady File="))
                         {
                             BoundaryFile = ProjTitle + "." + line1.Replace("Unsteady File=", "");
                         }
@@ -121,8 +119,8 @@ namespace SY.HECModelAdapter
                                 string[] tempParts = tempSD.Split(',');
                                 if (tempParts.Length == 4)
                                 {
-                                    int startYear, startMon, startDay, stopYear, stopMon, stopDay;
-                                    int startHour, startMinu, startSec, stopHour, stopMinu, stopSec;
+                                    int startYear = 0, startMon = 0, startDay = 0, stopYear = 0, stopMon = 0, stopDay = 0;
+                                    int startHour = 0, startMinu = 0, startSec = 0, stopHour = 0, stopMinu = 0, stopSec = 0;
                                     ConvertDateStr2YMD(tempParts[0], out startYear, out startMon, out startDay);
                                     ConvertDateStr2YMD(tempParts[2], out stopYear, out stopMon, out stopDay);
                                     //if (tempParts[1].Length != 8)
@@ -133,12 +131,18 @@ namespace SY.HECModelAdapter
                                     //{
                                     //    throw new Exception("无效的结束时间");
                                     //}
-                                    startHour = int.Parse(tempParts[1].Split(':')[0]);
-                                    startMinu = int.Parse(tempParts[1].Split(':')[1]);
-                                    startSec = int.Parse(tempParts[1].Split(':')[2]);
-                                    stopHour = int.Parse(tempParts[3].Split(':')[0]);
-                                    stopMinu = int.Parse(tempParts[3].Split(':')[1]);
-                                    stopSec = int.Parse(tempParts[3].Split(':')[2]);
+                                    if (tempParts[1] != "0000")
+                                    {
+                                        startHour = int.Parse(tempParts[1].Split(':')[0]);
+                                        startMinu = int.Parse(tempParts[1].Split(':')[1]);
+                                        startSec = int.Parse(tempParts[1].Split(':')[2]);
+                                    }
+                                    if (tempParts[3] != "0000")
+                                    {
+                                        stopHour = int.Parse(tempParts[3].Split(':')[0]);
+                                        stopMinu = int.Parse(tempParts[3].Split(':')[1]);
+                                        stopSec = int.Parse(tempParts[3].Split(':')[2]);
+                                    }
 
                                     SimulationStartTime = new DateTime(startYear, startMon, startDay, startHour, startMinu, startSec);
                                     SimulationEndTime = new DateTime(stopYear, stopMon, stopDay, stopHour, stopMinu, stopSec);
@@ -149,17 +153,18 @@ namespace SY.HECModelAdapter
                         {
                             flowFileExtentsion = line1.Replace("Flow File=", "");
                         }
-                        else if(line1.Contains("Output Interval="))
+                        else if (line1.StartsWith("Output Interval="))
                         {
                             var tmp = line1.Replace("Output Interval=", "");
-                            if(tmp.Contains("HOUR"))
-                                OutputTimeInterval = int.Parse(tmp.Substring(0, tmp.Length - 4))*3600;
+                            if (tmp.Contains("HOUR"))
+                                OutputTimeInterval = int.Parse(tmp.Substring(0, tmp.Length - 4)) * 3600;
                             else if (tmp.ToUpper().Contains("DAY"))
-                                OutputTimeInterval = int.Parse(tmp.Substring(0, tmp.Length - 3)) * 24*3600;
+                                OutputTimeInterval = int.Parse(tmp.Substring(0, tmp.Length - 3)) * 24 * 3600;
                             else if (tmp.ToUpper().Contains("WEEK"))
-                                OutputTimeInterval = int.Parse(tmp.Substring(0, tmp.Length - 4)) * 7*24 * 3600;
+                                OutputTimeInterval = int.Parse(tmp.Substring(0, tmp.Length - 4)) * 7 * 24 * 3600;
                             //else if (tmp.ToUpper().Contains("MONTH"))
                             //    OutputTimeInterval = int.Parse(tmp.Substring(0, tmp.Length - 5)) * 24 * 3600;
+                            OutputTimeStepNo = (int)((SimulationEndTime - SimulationStartTime).TotalSeconds / OutputTimeInterval);
                         }
                     }
                 }
@@ -194,77 +199,9 @@ namespace SY.HECModelAdapter
             }
         }
 
+        #endregion
 
-        /// <summary>
-        /// 将边界条件数据写入边界文件（类似u01或者u02文件）,注意只写入Boundary Location数据，其他数据从源文件保留 2022-5-28
-        /// </summary>
-        /// <param name="boundaryList"></param>
-        public void SetBoundary( List<Boundary> boundaryList  )
-        {
-            /// boundaryList 写到 BoundaryFile 文件里。
-            /// 
-
-            if( this.BoundaryFile == null || this.BoundaryFile.Equals(""))
-            {
-                if (OutputMsg != null)
-                {
-                    OutputMsg(new MessageInfo() { Tag = 0, Message = "BoundaryFile文件路径无效" });
-                }
-            }
-
-            if( this.BoundaryList != boundaryList)
-            {
-                this.BoundaryList = boundaryList;
-            }
-
-            try
-            {
-                //step1
-                string tBoundaryFilepath = ProjectDir + @"\" + BoundaryFile;
-                string[] lines = System.IO.File.ReadAllLines(tBoundaryFilepath);
-                List<string> newFileLines = new List<string>();
-                int stepTwoLineOffset = -1;
-                for (int iline = 0; iline < lines.Length; ++iline)
-                {
-                    if (lines[iline].Contains("Boundary Location="))
-                    {
-                        //第一次出现 Boundary Location= 跳出循环，进入下一步写入 BoundaryList数据
-                        stepTwoLineOffset = iline;
-                        break;
-                    }
-                    else
-                    {
-                        newFileLines.Add(lines[iline]);
-                    }
-                }
-
-                if( stepTwoLineOffset<0)
-                {
-                    throw new Exception("没有找到Boundary Location");
-                }
-
-                //step2 
-                for(int iboundary = 0; iboundary < boundaryList.Count; ++iboundary)
-                {
-                    string[] boundaryLines1 = writeBoundaryToLines(boundaryList[iboundary]);
-                    for(int il = 0; il < boundaryLines1.Length ; ++ il )
-                    {
-                        newFileLines.Add(boundaryLines1[il]);
-                    }
-                }
-
-                //step3 写入老文件
-                System.IO.File.WriteAllLines(tBoundaryFilepath, newFileLines);
-            }
-            catch(Exception ex)
-            {
-                if (OutputMsg != null)
-                {
-                    OutputMsg(new MessageInfo() { Tag = 0, Message = ex.Message });
-                }
-            }
-        }
-
+        #region 方法
 
         public bool RunModel(string controlfile)
         {
@@ -276,19 +213,19 @@ namespace SY.HECModelAdapter
                 // 启用背景线程计算模型
                 RunModelInBackgroud(controlfile);
                 System.Threading.Thread.Sleep(100);
-                
+
                 // 读取日志
                 while (!isRunOk)
                 {
                     logfile = Directory.GetFiles(dir, "*.computeMsgs.txt").FirstOrDefault();
-                    
+
                     while (!isRunOk && File.Exists(logfile))
                     {
                         var bakfile = logfile + ".bak";
-                        File.Copy(logfile, bakfile,true);
+                        File.Copy(logfile, bakfile, true);
 
                         using (FileStream fs = new FileStream(bakfile, FileMode.Open, FileAccess.Read, FileShare.Read))
-                        {                            
+                        {
                             using (StreamReader sr = new StreamReader(fs))
                             {
                                 var prgs = new List<string>();
@@ -312,7 +249,7 @@ namespace SY.HECModelAdapter
                                 if (msg.Contains("Finished Post Processing")) isRunOk = true;
                             }
                             //fs.Close();
-                        }                        
+                        }
                     }
                 }
 
@@ -338,21 +275,22 @@ namespace SY.HECModelAdapter
             var data = string.Empty;
             isRunOk = false;
 
-            while (!isRunOk)
+            //while (!isRunOk)
             {
                 var logfile = Directory.GetFiles(dir, "*.computeMsgs.txt", SearchOption.AllDirectories).FirstOrDefault();
                 CommonUtility.Log(logfile);
-                while (!isRunOk && File.Exists(logfile))
+                //while (!isRunOk && File.Exists(logfile))
+                while (File.Exists(logfile))
                 {
-                    var bakfile = logfile + ".bak2";
-                    File.Copy(logfile, bakfile, true);
+                    //var bakfile = logfile + ".bak2";
+                    //File.Copy(logfile, bakfile, true);
 
-                    using (FileStream fs = new FileStream(bakfile, FileMode.Open, FileAccess.Read, FileShare.Read))
+                    using (FileStream fs = new FileStream(logfile, FileMode.Open, FileAccess.Read, FileShare.Read))
                     {
                         using (StreamReader sr = new StreamReader(fs))
                         {
                             data = sr.ReadToEnd();
-                            isRunOk = true;                           
+                            //isRunOk = true;
                         }
                     }
                     break;
@@ -362,6 +300,31 @@ namespace SY.HECModelAdapter
             //if (isRunOk) data = "计算已结束！";
 
             return data;
+        }
+
+        public void RunModelInBackgroud(string controlfile)
+        {
+            //var bgw = new BackgroundWorker();
+            //bgw.RunWorkerCompleted += Bgw_RunWorkerCompleted;
+            //bgw.DoWork += (sender, e) =>
+            //{
+            new Thread(() =>
+            {
+                HECRASController heccore = new HECRASController();
+                int nmsg = 0;
+                bool block = true;
+                Array sa = null;
+                heccore.Project_Open(controlfile);
+                heccore.Compute_ShowComputationWindow();
+
+                heccore.Compute_CurrentPlan(ref nmsg, sa, ref block);
+
+                heccore.Project_Save();
+                heccore.Project_Close();
+                heccore.QuitRas();
+                isRunOk = true;
+            }).Start();
+            //};
         }
 
         public void GenerateGemetryFileByShp(string shpfile, string geoFile, double tolerence)
@@ -730,7 +693,9 @@ namespace SY.HECModelAdapter
                         var ptsno = int.Parse(st[1].Trim());
                         var pts = new string[ptsno * 2];
                         rr.Points = new List<Sy.Global.PointD>();
+
                         pts = readHecDataTable(ref sr, ptsno * 2);
+
                         for (int i = 0; i < ptsno * 2;)
                         {
                             rr.Points.Add(new Sy.Global.PointD(double.Parse(pts[i].Trim())
@@ -1213,7 +1178,7 @@ namespace SY.HECModelAdapter
             }
         }
 
-        public string  Geo2Json(List<River> riverdm, string jsonfile)
+        public string Geo2Json(List<River> riverdm, string jsonfile)
         {
             try
             {
@@ -1225,7 +1190,7 @@ namespace SY.HECModelAdapter
 
                 //var json = Utility.Utility.ConvertShp2JsonFileEx4(shp);
                 //File.WriteAllText(jsonfile, json);
-                return File.ReadAllText(jsonfile).Replace("\r\n","").Replace("\n", "").Trim();
+                return File.ReadAllText(jsonfile).Replace("\r\n", "").Replace("\n", "").Trim();
             }
             catch (Exception ex)
             {
@@ -1251,7 +1216,7 @@ namespace SY.HECModelAdapter
 
                 Utility.Utility.ConvertShp2GeoJson(shp, jsonfile);
 
-                return File.ReadAllText(jsonfile).Replace("\r\n", "").Replace("\n", "").Trim(); 
+                return File.ReadAllText(jsonfile).Replace("\r\n", "").Replace("\n", "").Trim();
             }
             catch (Exception ex)
             {
@@ -1280,13 +1245,13 @@ namespace SY.HECModelAdapter
                     rvr.EdChainage = float.Parse(rv.CSCollection.Last().Location[0].Replace("*", ""));
                     rvr.XSectoin = new List<Crosssection>();
                     //断面处理
-                    var origin =float.Parse( rv.CSCollection.Last().Location[1].Replace("*", ""));
+                    var origin = float.Parse(rv.CSCollection.Last().Location[1].Replace("*", ""));
                     foreach (var cs in rv.CSCollection)
                     {
                         //计算断面测量点空间坐标
                         var pts = cs.Data;//断面测量点
                         var branchPts = rv.Points;//河段点坐标集合
-                        var distance = float.Parse(cs.Location[1].Replace("*","")) - origin;//距离
+                        var distance = float.Parse(cs.Location[1].Replace("*", "")) - origin;//距离
                         //将断面测量点分左右
                         var ld = new List<float>();
                         var rd = new List<float>();
@@ -1297,7 +1262,7 @@ namespace SY.HECModelAdapter
                         var zminPts = (from r in pts where r.Y == zmin select r);
                         var cidx = -1;
                         PointD cpt;
-                        if(zminPts.Count()==1)
+                        if (zminPts.Count() == 1)
                         {
                             cidx = pts.IndexOf(zminPts.First());
                             cpt = pts[cidx];
@@ -1314,25 +1279,25 @@ namespace SY.HECModelAdapter
                             }
                             else
                             {
-                                cidx = pts.IndexOf(zminPts.First())+(int) Math.Floor(zminPts.Count() / 2.0);
+                                cidx = pts.IndexOf(zminPts.First()) + (int)Math.Floor(zminPts.Count() / 2.0);
                                 cpt = pts[cidx];
                             }
                         }
                         ld = pts.Take(cidx).Select(x => (float)x.X).ToList<float>();
                         var ldz = pts.Take(cidx).Select(x => (float)x.Y).ToList<float>();
-                        rd = pts.Skip(cidx+1).Select(x => (float)x.X).ToList<float>();
-                        var rdz = pts.Skip(cidx+1).Select(x => (float)x.Y).ToList<float>();
+                        rd = pts.Skip(cidx + 1).Select(x => (float)x.X).ToList<float>();
+                        var rdz = pts.Skip(cidx + 1).Select(x => (float)x.Y).ToList<float>();
                         var cptz = cpt.Y;
                         //计算坐标
                         Utility.Utility.GetSectionCoords(branchPts, distance, ld, rd, ref lpts, ref rpts, ref cpt.X, ref cpt.Y);
                         for (int i = 0; i < ld.Count; i++)
-                            lpts[i] = new PointD(lpts[i].X, lpts[i].Y,ldz[i]);
+                            lpts[i] = new PointD(lpts[i].X, lpts[i].Y, ldz[i]);
                         for (int i = 0; i < rd.Count; i++)
                             rpts[i] = new PointD(rpts[i].X, rpts[i].Y, rdz[i]);
-                        cpt = new PointD(cpt.X,cpt.Y,cptz);
+                        cpt = new PointD(cpt.X, cpt.Y, cptz);
 
                         cs.Points = lpts;
-                        if(cidx>0)
+                        if (cidx > 0)
                             cs.Points.Add(cpt);
                         cs.Points.AddRange(rpts);
                         rvr.XSectoin.Add(cs);
@@ -1396,60 +1361,183 @@ namespace SY.HECModelAdapter
             }
         }
 
-        public void RunModelInBackgroud(string controlfile)
+        /// <summary>
+        /// 将边界条件数据写入边界文件（类似u01或者u02文件）,注意只写入Boundary Location数据，其他数据从源文件保留 2022-5-28
+        /// </summary>
+        /// <param name="boundaryList"></param>
+        public void SetBoundary(List<Boundary> boundaryList)
         {
-            //var bgw = new BackgroundWorker();
-            //bgw.RunWorkerCompleted += Bgw_RunWorkerCompleted;
-            //bgw.DoWork += (sender, e) =>
-            //{
-            new Thread(() =>
+            /// boundaryList 写到 BoundaryFile 文件里。
+            /// 
+
+            if (this.BoundaryFile == null || this.BoundaryFile.Equals(""))
             {
-                HECRASController heccore = new HECRASController();
-                int nmsg = 0;
-                bool block = true;
-                Array sa = null;
-                heccore.Project_Open(controlfile);
-                heccore.Compute_ShowComputationWindow();
+                if (OutputMsg != null)
+                {
+                    OutputMsg(new MessageInfo() { Tag = 0, Message = "BoundaryFile文件路径无效" });
+                }
+            }
 
-                heccore.Compute_CurrentPlan(ref nmsg, sa, ref block);
+            if (this.BoundaryList != boundaryList)
+            {
+                this.BoundaryList = boundaryList;
+            }
 
-                heccore.Project_Save();
-                heccore.Project_Close();
-                heccore.QuitRas();
-                isRunOk = true;
-            }).Start();
-            //};
+            try
+            {
+                //step1
+                string tBoundaryFilepath = ProjectDir + @"\" + BoundaryFile;
+                string[] lines = System.IO.File.ReadAllLines(tBoundaryFilepath);
+                List<string> newFileLines = new List<string>();
+                int stepTwoLineOffset = -1;
+                for (int iline = 0; iline < lines.Length; ++iline)
+                {
+                    if (lines[iline].Contains("Boundary Location="))
+                    {
+                        //第一次出现 Boundary Location= 跳出循环，进入下一步写入 BoundaryList数据
+                        stepTwoLineOffset = iline;
+                        break;
+                    }
+                    else
+                    {
+                        newFileLines.Add(lines[iline]);
+                    }
+                }
+
+                if (stepTwoLineOffset < 0)
+                {
+                    throw new Exception("没有找到Boundary Location");
+                }
+
+                //step2 
+                for (int iboundary = 0; iboundary < boundaryList.Count; ++iboundary)
+                {
+                    string[] boundaryLines1 = writeBoundaryToLines(boundaryList[iboundary]);
+                    for (int il = 0; il < boundaryLines1.Length; ++il)
+                    {
+                        newFileLines.Add(boundaryLines1[il]);
+                    }
+                }
+
+                //step3 写入老文件
+                System.IO.File.WriteAllLines(tBoundaryFilepath, newFileLines);
+            }
+            catch (Exception ex)
+            {
+                if (OutputMsg != null)
+                {
+                    OutputMsg(new MessageInfo() { Tag = 0, Message = ex.Message });
+                }
+            }
         }
 
-        public List<RiverSegStatisctResults> GetStatisticResults()
+        public List<RiverSegModelResults> GetResults(DateTime startTime, DateTime endTime,
+            string Projection, int centralLgtd)
         {
             try
             {
-                using (var dssr = new DssReader(Path.Combine(ProjectDir,DSSFile),
+                List<RiverSegModelResults> res = new List<RiverSegModelResults>();
+
+                using (var dssr = new DssReader(Path.Combine(ProjectDir, DSSFile),
                     DssReader.MethodID.MESS_METHOD_GENERAL_ID, DssReader.LevelID.MESS_LEVEL_CRITICAL))
                 {
                     var rivers = GetRiverInfo(ModelTopo);
                     foreach (var river in rivers)
                     {
+                        var listWl = new List<double[]>();
+                        var listQ = new List<double[]>();
+                        var stations = new List<double>();
+
                         //直接在这里根据时间、结果保存步长、特征值标识写全path字符串
                         //按时间遍历取值，赋给RiverSegStatisctResults对象
-                        var path = "/"+river.RvrName.ToUpper()+" "+river.RchName.ToUpper()+ "//LOCATION-ELEV//"; 
-                        DssPathCollection paths = dssr.GetCatalog();
-                        var elevpath = new List<DssPath>();
-                        for (int i = 0; i < paths.Count; i++)
+                        int i = 0;
+                        var currTime = startTime;
+                        while (currTime < endTime)
                         {
-                            if (paths[i].FullPath.Contains(path))
+                            currTime = currTime.AddSeconds(OutputTimeInterval);
+                            var stime = ConvertYMD2DateStr(currTime.Year, currTime.Month, currTime.Day);
+                            var wl_path = "/" + river.RvrName.ToUpper() + " " + river.RchName.ToUpper() + "//LOCATION-ELEV//" +
+                                stime + " 0000/SINGLERIVER/";
+                            var q_path = "/" + river.RvrName.ToUpper() + " " + river.RchName.ToUpper() + "//LOCATION-FLOW//" +
+                                stime + " 0000/SINGLERIVER/";
+
+                            DssPathCollection paths = dssr.GetCatalog();
+                            //var elevpath = new List<DssPath>();
+                            for (int j = 0; j < paths.Count; j++)
                             {
-                                elevpath.Add(paths[i]);
-                                var pd = dssr.GetPairedData(paths[i].FullPath);
-                                var stations = pd.Ordinates; //桩号
-                                var waterlevels = pd.Values[0]; //水位
+                                if (paths[j].FullPath.Contains(wl_path))
+                                {
+                                    //elevpath.Add(paths[j]);
+                                    var pd = dssr.GetPairedData(paths[j].FullPath);
+                                    if (i == 0) stations = pd.Ordinates.ToList(); //桩号
+                                    listWl.Add(pd.Values[0]); //水位
+                                }
+                                else if (paths[j].FullPath.Contains(q_path))
+                                {
+                                    var pd = dssr.GetPairedData(paths[j].FullPath);
+                                    //var stations = pd.Ordinates; //桩号
+                                    listQ.Add(pd.Values[0]); //流量
+                                }
                             }
-                        }                        
+
+                            i++;
+                        }
+
+                        //根据桩号（也即距离，计算河段的坐标）
+                        var riverpts = river.Points;
+
+                        riverpts.Reverse();
+                        stations.Sort();
+                        var uitl = new Utility.Utility();
+                        for (int m = 0; m < stations.Count; m++)
+                        {
+                            List<PointD> segpts = new List<PointD>();
+                            var endDistIdx = -1;
+
+                            uitl.GetSegmentPoints(riverpts,
+                                (float)(m == 0 ?
+                                (stations[m] - stations[0]) :
+                                stations[m] - stations[0] - (stations[m] - stations[m - 1]) / 2),
+                                (float)(m + 1 == stations.Count ?
+                                stations[m] - stations[0] :
+                                stations[m] - stations[0] + (stations[m + 1] - stations[m]) / 2), out segpts, out endDistIdx);
+
+                            //如果最后一个桩号不在reach的端点上，将点补全
+                            if (m + 1 == stations.Count && endDistIdx < riverpts.Count - 1)
+                            {
+                                segpts.AddRange(riverpts.Skip(endDistIdx + 1).Take(riverpts.Count - 1 - endDistIdx));
+                            }
+
+                            //转换为cgcs2000坐标系
+                            //根据投影坐标系及中央经度找到坐标编码
+                            var crs_in = int.Parse(Utility.Utility.GetPrjSysWKID(centralLgtd, Projection));
+                            var crs_out = 4490;
+                            var pts = segpts;
+                            segpts = Utility.Utility.CoordTransformPoints(pts, crs_in, crs_out);
+
+                            var seg = new RiverSegModelResults();
+                            seg.TimeInterval = (int)OutputTimeInterval / 3600;
+                            seg.RvrMdCode = river.RvrMdCode;
+                            seg.Chainage = (float)stations[m];
+                            seg.WaterLevel = listWl.Select(x => x[m]).Select(y => (float)y).ToArray<float>();
+                            seg.Discharge = listQ.Select(x => x[m]).Select(y => (float)y).ToArray<float>();
+
+                            seg.MaxDischarge = seg.Discharge.Max();
+                            seg.MinDischarge = seg.Discharge.Min();
+                            seg.AvgDischarge = seg.Discharge.Average();
+
+                            seg.MaxWaterLevel = seg.WaterLevel.Max();
+                            seg.MinWaterLevel = seg.WaterLevel.Min();
+                            seg.AvgWaterLevel = seg.WaterLevel.Average();
+
+                            segpts.ForEach(x => seg.LineGeoString += (x.X.ToString() + " " + x.Y.ToString() + ","));
+                            seg.LineGeoString = "LINESTRING(" + seg.LineGeoString.TrimEnd(',') + ")";
+
+                            res.Add(seg);
+                        }
                     }
-                    
                 }
-                return null;
+                return res;
             }
             catch (Exception ex)
             {
@@ -1458,6 +1546,25 @@ namespace SY.HECModelAdapter
             }
         }
 
+        public void GenerateResultsStatisticShp(List<RiverSegModelResults> resDM, string shpfile)
+        {
+            try
+            {
+                Utility.Utility.CreateRiverStatisticResultsShp(resDM, shpfile);
+            }
+            catch (Exception ex)
+            {
+                CommonUtility.Log("GenerateResultsStatisticShp:" + ex.Message);
+            }
+        }
+        #endregion
+
+        #region 属性
+
+        /// <summary>
+        /// 发送信息数据
+        /// </summary>
+        public event OutputMsgHandler OutputMsg;
         public List<Boundary> BoundaryList { get; set; }
         public string ProjectDir { get; set; }
         public string Geofile { get; set; }
@@ -1478,8 +1585,16 @@ namespace SY.HECModelAdapter
         /// 单位：秒；dss结果输出时间步长
         /// </summary>
         public float OutputTimeInterval { get; set; }
+        /// <summary>
+        /// 结果输出时间步数
+        /// </summary>
+        public int OutputTimeStepNo { get; set; }
+
         public HEC_DM ModelTopo { get; set; }
 
+        #endregion
+
+        #region 私有方法
         private void Bgw_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
 
@@ -1520,7 +1635,7 @@ namespace SY.HECModelAdapter
         }
         private string ConvertYMD2DateStr(int year, int mon, int day)
         {//01APR2022 <-> 2022, 4 ,1 
-            
+
             var sday = day.ToString().PadLeft(2, '0');
             string[] monstr = { "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC" };
             var sm = monstr[mon - 1];
@@ -1530,111 +1645,120 @@ namespace SY.HECModelAdapter
 
         private Boundary makeBoundaryByLines(string[] lines, int startOffset, DateTime startDt)
         {
-            Boundary boundary = new Boundary();
-            
-
-            string intervalStr = lines[startOffset + 1].Replace("Interval=", "");
-            TimeSpan timeSpan = new TimeSpan();
+            try
             {
-                int n = 0;
-                string unit = "";
-                if (Char.IsDigit(intervalStr[1]))
+                Boundary boundary = new Boundary();
+
+
+                string intervalStr = lines[startOffset + 1].Replace("Interval=", "");
+                TimeSpan timeSpan = new TimeSpan();
                 {
-                    n = int.Parse(intervalStr.Substring(0, 2));
-                    unit = intervalStr.Substring(2);
+                    int n = 0;
+                    string unit = "";
+                    if (intervalStr.StartsWith("Gate Name=") || intervalStr.StartsWith("Elev Controlled Gate=")) return null;
+                    if (Char.IsDigit(intervalStr[1]))
+                    {
+                        n = int.Parse(intervalStr.Substring(0, 2));
+                        unit = intervalStr.Substring(2);
+                    }
+                    else
+                    {
+                        n = int.Parse(intervalStr.Substring(0, 1));
+                        unit = intervalStr.Substring(1);
+                    }
+                    if (unit.Contains("SEC"))
+                    {
+                        timeSpan = new TimeSpan(0, 0, 0, n);
+                    }
+                    else if (unit.Contains("MIN"))
+                    {
+                        timeSpan = new TimeSpan(0, 0, n, 0);
+                    }
+                    else if (unit.Contains("HOUR"))
+                    {
+                        timeSpan = new TimeSpan(0, n, 0, 0);
+                    }
+                    else if (unit.Contains("DAY"))
+                    {
+                        timeSpan = new TimeSpan(n, 0, 0, 0);
+                    }
+                    else if (unit.Contains("WEE"))
+                    {
+                        timeSpan = new TimeSpan(7, 0, 0, 0);
+                    }
+                    else if (unit.Contains("MON"))
+                    {
+                        timeSpan = new TimeSpan(30, 0, 0, 0);
+                    }
+                    else if (unit.Contains("YEA"))
+                    {
+                        timeSpan = new TimeSpan(365, 0, 0, 0);
+                    }
+                    else
+                    {
+                        throw new Exception("无效的时间间隔字符串'" + intervalStr + "'");
+                    }
+                }
+                boundary.IntervalStr = intervalStr;
+
+                int numVal = 0;
+                string line3 = lines[startOffset + 2];
+                if (line3.Contains("Flow Hydrograph="))
+                {
+                    numVal = int.Parse(line3.Replace("Flow Hydrograph=", ""));
+                    boundary.HDType = enumHDBoundaryType.流量;
+                }
+                else if (line3.Contains("Stage Hydrograph="))
+                {
+                    numVal = int.Parse(line3.Replace("Stage Hydrograph=", ""));
+                    boundary.HDType = enumHDBoundaryType.水位;
+                }
+                else if (line3.Contains("Uniform Lateral Inflow Hydrograph="))
+                {
+                    numVal = int.Parse(line3.Replace("Uniform Lateral Inflow Hydrograph=", ""));
+                    boundary.HDType = enumHDBoundaryType.侧向流量;
                 }
                 else
                 {
-                    n = int.Parse(intervalStr.Substring(0, 1));
-                    unit = intervalStr.Substring(1);
+                    //throw new Exception("不支持的边界类型'" + line3 + "'");
+                    return null;
                 }
-                if (unit.Contains("SEC"))
-                {
-                    timeSpan = new TimeSpan(0, 0, 0, n);
-                }
-                else if (unit.Contains("MIN"))
-                {
-                    timeSpan = new TimeSpan(0, 0, n, 0);
-                }
-                else if (unit.Contains("HOUR"))
-                {
-                    timeSpan = new TimeSpan(0, n, 0, 0);
-                }
-                else if (unit.Contains("DAY"))
-                {
-                    timeSpan = new TimeSpan(n, 0, 0, 0);
-                }
-                else if (unit.Contains("WEE"))
-                {
-                    timeSpan = new TimeSpan(7, 0, 0, 0);
-                }
-                else if (unit.Contains("MON"))
-                {
-                    timeSpan = new TimeSpan(30, 0, 0, 0);
-                }
-                else if (unit.Contains("YEA"))
-                {
-                    timeSpan = new TimeSpan(365, 0, 0, 0);
-                }
-                else
-                {
-                    throw new Exception("无效的时间间隔字符串'" + intervalStr + "'");
-                }
-            }
-            boundary.IntervalStr = intervalStr;
 
-            int numVal = 0;
-            string line3 = lines[startOffset + 2];
-            if (line3.Contains("Flow Hydrograph="))
-            {
-                numVal = int.Parse(line3.Replace("Flow Hydrograph=", ""));
-                boundary.HDType = enumHDBoundaryType.流量;
+                string line1 = lines[startOffset].Replace("Boundary Location=", "");
+                {
+                    string[] parts = line1.Split(',');
+                    if (parts.Length < 3)
+                    {
+                        throw new Exception("无效的Boundary Location");
+                    }
+                    boundary.Location3.riverName = parts[0].Trim();
+                    boundary.Location3.reachName = parts[1].Trim();
+                    boundary.Location3.station = parts[2].Trim();
+                    if (boundary.HDType == enumHDBoundaryType.侧向流量)
+                        boundary.Location3.station2 = parts[3].Trim();
+                }
+
+                DateTime currDt = startDt;
+                int numLinesOfValue = (int)Math.Ceiling(numVal / 10.0);
+                for (int iline = startOffset + 3; iline < startOffset + 3 + numLinesOfValue; ++iline)
+                {
+                    int numValInLine = lines[iline].Length / 8;
+                    for (int ival = 0; ival < numValInLine; ++ival)
+                    {
+                        TSData tData = new TSData();
+                        tData.DT = currDt;
+                        tData.Data = float.Parse(lines[iline].Substring(ival * 8, 8));
+                        boundary.Value.Add(tData);
+                        currDt += timeSpan;
+                    }
+                }
+                return boundary;
             }
-            else if (line3.Contains("Stage Hydrograph="))
+            catch (Exception ex)
             {
-                numVal = int.Parse(line3.Replace("Stage Hydrograph=", ""));
-                boundary.HDType = enumHDBoundaryType.水位;
-            }
-            else if (line3.Contains("Uniform Lateral Inflow Hydrograph="))
-            {
-                numVal = int.Parse(line3.Replace("Uniform Lateral Inflow Hydrograph=", ""));
-                boundary.HDType = enumHDBoundaryType.侧向流量;
-            }
-            else
-            {
-                //throw new Exception("不支持的边界类型'" + line3 + "'");
+                CommonUtility.Log(ex.Message);
                 return null;
             }
-
-            string line1 = lines[startOffset].Replace("Boundary Location=", "");
-            {
-                string[] parts = line1.Split(',');
-                if (parts.Length < 3)
-                {
-                    throw new Exception("无效的Boundary Location");
-                }
-                boundary.Location3.riverName = parts[0].Trim();
-                boundary.Location3.reachName = parts[1].Trim();
-                boundary.Location3.station = parts[2].Trim();
-                if(boundary.HDType == enumHDBoundaryType.侧向流量)
-                    boundary.Location3.station2 = parts[3].Trim();
-            }
-
-            DateTime currDt = startDt;
-            int numLinesOfValue = (int)Math.Ceiling(numVal / 10.0);
-            for (int iline = startOffset + 3; iline < startOffset + 3 + numLinesOfValue; ++iline)
-            {
-                int numValInLine = lines[iline].Length / 8;
-                for (int ival = 0; ival < numValInLine; ++ival)
-                {
-                    TSData tData = new TSData();
-                    tData.DT = currDt;
-                    tData.Data = float.Parse(lines[iline].Substring(ival * 8, 8));
-                    boundary.Value.Add(tData);
-                    currDt += timeSpan;
-                }
-            }
-            return boundary;
         }
 
         /// <summary>
@@ -1644,10 +1768,10 @@ namespace SY.HECModelAdapter
         /// <returns></returns>
         private string padding16(string tstr)
         {
-            if( tstr.Length<16)
+            if (tstr.Length < 16)
             {
                 string newStr = tstr;
-                for(int i = tstr.Length; i<16; ++ i)
+                for (int i = tstr.Length; i < 16; ++i)
                 {
                     newStr += " ";
                 }
@@ -1698,25 +1822,25 @@ namespace SY.HECModelAdapter
             return string.Format("{0,8}", val);
         }
 
-        private string[] writeBoundaryToLines(Boundary theBoundary )
+        private string[] writeBoundaryToLines(Boundary theBoundary)
         {
             List<string> tNewLines = new List<string>();
             tNewLines.Add("Boundary Location="
                 + padding16(theBoundary.Location3.riverName) + ","
                 + padding16(theBoundary.Location3.reachName) + ","
-                + padding8(theBoundary.Location3.station)+","
+                + padding8(theBoundary.Location3.station) + ","
                 + padding8("") + ","
                 + padding16("") + ","
                 + padding16("") + ","
                 + padding16("") + ","
-                + padding32("") 
-                ) ;
-            tNewLines.Add("Interval=" + theBoundary.IntervalStr );
-            if( theBoundary.HDType == enumHDBoundaryType.流量 )
+                + padding32("")
+                );
+            tNewLines.Add("Interval=" + theBoundary.IntervalStr);
+            if (theBoundary.HDType == enumHDBoundaryType.流量)
             {
-                tNewLines.Add("Flow Hydrograph=" + theBoundary.Value.Count );
+                tNewLines.Add("Flow Hydrograph=" + theBoundary.Value.Count);
             }
-            else if(theBoundary.HDType == enumHDBoundaryType.水位)
+            else if (theBoundary.HDType == enumHDBoundaryType.水位)
             {
                 tNewLines.Add("Stage Hydrograph=" + theBoundary.Value.Count);
             }
@@ -1724,17 +1848,17 @@ namespace SY.HECModelAdapter
             {
                 throw new Exception("不支持的边界类型'" + theBoundary.HDType.ToString() + "'");
             }
-            int nlines = (int) Math.Ceiling( theBoundary.Value.Count * 1.0 / 10.0 ) ;
-            for(int iline = 0; iline < nlines; ++ iline )
+            int nlines = (int)Math.Ceiling(theBoundary.Value.Count * 1.0 / 10.0);
+            for (int iline = 0; iline < nlines; ++iline)
             {
                 string tline1 = "";
-                for(int iv = 0; iv < 10; ++ iv )
+                for (int iv = 0; iv < 10; ++iv)
                 {
-                    if( iline*10+iv < theBoundary.Value.Count)
+                    if (iline * 10 + iv < theBoundary.Value.Count)
                     {
-                        tline1 += paddingLeft8( theBoundary.Value[iline * 10 + iv].Data );
+                        tline1 += paddingLeft8(theBoundary.Value[iline * 10 + iv].Data);
                     }
-                    
+
                 }
                 tNewLines.Add(tline1);
             }
@@ -1745,7 +1869,7 @@ namespace SY.HECModelAdapter
             tNewLines.Add("Is Critical Boundary=False");
             tNewLines.Add("Critical Boundary Flow=");
 
-            return tNewLines.ToArray() ;
+            return tNewLines.ToArray();
         }
 
         private string[] readHecDataTable(ref StreamReader sr, int ptsno, int colums = 4)
@@ -1780,5 +1904,6 @@ namespace SY.HECModelAdapter
             }
         }
 
+        #endregion
     }
 }

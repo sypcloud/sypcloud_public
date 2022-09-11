@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Data;
 using System.Text;
 using System.Threading.Tasks;
+using Hec.Dss;
 using SY.Models.ModelBase;
 
 namespace SY.HECModelAdapter
@@ -10,6 +13,16 @@ namespace SY.HECModelAdapter
     public class HMSModelAdapter
     {
         private HmsModelResultsDM resultsDM;
+        private string ProjectDir;
+
+        public HMSModelAdapter()
+        { }
+
+        public HMSModelAdapter(string dir)
+        {
+            ProjectDir = dir;
+        }
+
         public void ParseResults(string resultfile)
         {
             try
@@ -31,10 +44,11 @@ namespace SY.HECModelAdapter
                 {
                     if (!res.ContainsKey(statistic.BasinElementRow.name))
                     {
+                        var area = statistic.BasinElementRow.GetDrainageAreaRows()[0].area;
                         var statisticMeasures = statistic.GetStatisticMeasureRows();
                         foreach (HmsModelResultsDM.StatisticMeasureRow measure in statisticMeasures)
                         {
-                            if(measure.type == "Outflow Maximum")
+                            if (measure.type == "Outflow Maximum")
                                 res.Add(statistic.BasinElementRow.name, float.Parse(measure.value));
                         }
                     }
@@ -47,6 +61,7 @@ namespace SY.HECModelAdapter
                 return null;
             }
         }
+        
         public HMS_BASIN_DM GetBasin(string basinFile)
         {
             HMS_BASIN_DM basins = new HMS_BASIN_DM();
@@ -181,7 +196,7 @@ End:";
                     contents.AppendLine("");
                 }
 
-                foreach(var reach in basins.Reach)
+                foreach (var reach in basins.Reach)
                 {
                     contents.AppendLine("Reach: " + reach.Reach);
                     contents.AppendLine("     Last Modified Date: " + reach.Last_Modified_Date);
@@ -195,6 +210,9 @@ End:";
                     contents.AppendLine("     Downstream: " + reach.Downstream);
                     contents.AppendLine("");
                     contents.AppendLine("     Route: " + reach.Route);
+                    contents.AppendLine("     Muskingum K: " + reach.Muskingum_K);
+                    contents.AppendLine("     Muskingum x: " + reach.Muskingum_X);
+                    contents.AppendLine("     Muskingum Steps: " + reach.Muskingum_X);
                     contents.AppendLine("     Channel Loss: " + reach.Channel_Loss);
                     contents.AppendLine("End:");
                     contents.AppendLine("");
@@ -210,8 +228,97 @@ End:";
             }
         }
 
+        public List<TSData> GetTimeSeries(string outlet,int tag)
+        {
+            var res = new List<TSData>();
+            try
+            {
+                var basins = this.resultsDM.BasinElement;
+                foreach(HmsModelResultsDM.BasinElementRow basin in basins)
+                {
+                    if (basin.name.Equals(outlet))
+                    {
+                        HmsModelResultsDM.HydrologyRow hy = basin.GetHydrologyRows()[0];
+                        HmsModelResultsDM.TimeSeriesRow ts = hy.GetTimeSeriesRows()[tag];
+
+                        using (var dssr = new DssReader(Path.Combine(ProjectDir, ts.DssFileName),
+                                            DssReader.MethodID.MESS_METHOD_GENERAL_ID, DssReader.LevelID.MESS_LEVEL_CRITICAL))
+                        {
+                            var tsdata = dssr.GetTimeSeries(new DssPath(ts.DssPathname));
+                            var idx = 0;
+                            foreach (var t in tsdata.Times)
+                            {
+                                res.Add(new TSData()
+                                {
+                                    DT = t,
+                                    Data = (float)tsdata.Values[idx]
+                                });
+                                idx++;
+                            }
+                        }
+                        break;
+                    }
+                }
+
+                
+                return res;
+            }
+            catch (Exception ex)
+            {
+                Common.CommonUtility.Log(ex.Message);
+                return res;
+            }
+        }
+
+        public List<Tuple<string,float,float>> GetJuctionBasinArea(List<string> juctionName)
+        {
+            try
+            {
+                List<Tuple<string, float, float>> res=new List<Tuple<string, float, float>>();
+                var qlist = GetPeakFlow();
+
+                foreach (var jc in juctionName)
+                {
+                    var area = 0f;
+                    var q = 0f;
+                    getAreaAndQ(jc, qlist, ref area,ref q);
+                    res.Add(Tuple.Create<string,float,float>(jc,area,q));
+                }
+
+                return res;
+            }
+            catch(Exception ex)
+            {
+                SY.Common.CommonUtility.Log(ex.Message);
+                return null;
+            }
+        }
+        private void getAreaAndQ(string jc, Dictionary<string, float> qlist, ref float area, ref float q)
+        {
+            var jcobj = (from r in this.resultsDM.BasinElement.AsEnumerable()
+                         where r["name"].Equals(jc)
+                         select (HmsModelResultsDM.BasinElementRow)r).FirstOrDefault();
+            area += float.Parse(jcobj.GetDrainageAreaRows().FirstOrDefault().area);
+            q += qlist[jc];
+            var links = jcobj.GetFlowLinkRows();
+            foreach (var lk in links)
+            {
+                var lkname = lk.upstreamName;
+                if (lkname.EndsWith("R"))
+                {
+                    lkname = lkname.Replace("R", "C");
+                    jcobj = (from r in this.resultsDM.BasinElement.AsEnumerable()
+                             where r["name"].Equals(lkname)
+                             select (HmsModelResultsDM.BasinElementRow)r).FirstOrDefault();
+                    area += float.Parse(jcobj.GetDrainageAreaRows().FirstOrDefault().area);
+                    q += qlist[lkname];
+                    getAreaAndQ(lkname, qlist, ref area, ref q);
+                }
+            }
+        }
         private HMS_SUBBASIN_DM makeBasinLines(string[] lines, int startOffset)
         {
+            /*后面改造为已END标识结尾来循环判断*/
             HMS_SUBBASIN_DM subbasin = new HMS_SUBBASIN_DM();
             subbasin.Subbasin = lines[startOffset].Replace("Subbasin:", "").Trim();
             subbasin.Last_Modified_Date = lines[startOffset + 1].Replace("Last Modified Date:", "").Trim();
@@ -223,6 +330,7 @@ End:";
             subbasin.Area = lines[startOffset + 7].Replace("Area:", "").Trim();
             subbasin.Downstream = lines[startOffset + 8].Replace("Downstream:", "").Trim();
             subbasin.Canopy = lines[startOffset + 10].Replace("Canopy:", "").Trim();
+            startOffset++;
             subbasin.Plant_Uptake_Method = lines[startOffset + 11].Replace("Plant Uptake Method:", "").Trim();
             subbasin.Surface = lines[startOffset + 13].Replace("Surface:", "").Trim();
             subbasin.LossRate = lines[startOffset + 15].Replace("LossRate:", "").Trim();
@@ -247,7 +355,6 @@ End:";
             juction.Label_Y = lines[startOffset + 6].Replace("Label Y:", "").Trim();
             return juction;
         }
-
         private HMS_REACH_DM makeReachLines(string[] lines, int startOffset)
         {
             var reach = new HMS_REACH_DM();
@@ -256,7 +363,7 @@ End:";
             reach.Last_Modified_Time = lines[startOffset + 2].Replace("Last Modified Time:", "").Trim();
             reach.Canvas_X = lines[startOffset + 3].Replace("Canvas X:", "").Trim();
             reach.Canvas_Y = lines[startOffset + 4].Replace("Canvas Y:", "").Trim();
-            reach.From_Canvas_X= lines[startOffset + 5].Replace("From Canvas X:", "").Trim();
+            reach.From_Canvas_X = lines[startOffset + 5].Replace("From Canvas X:", "").Trim();
             reach.From_Canvas_Y = lines[startOffset + 6].Replace("From Canvas Y:", "").Trim();
             reach.Label_X = lines[startOffset + 7].Replace("Label X:", "").Trim();
             reach.Label_Y = lines[startOffset + 8].Replace("Label Y:", "").Trim();

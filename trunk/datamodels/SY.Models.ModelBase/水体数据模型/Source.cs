@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Sy.Global;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Serialization;
@@ -27,6 +28,19 @@ namespace SY.Models.ModelBase
         [DataMember]
         public List<string> CaseLeakage_ListNuclideNames { get; set; }
 
+        [DataMember]
+        public string Name { get; set; }
 
+        [DataMember]
+        public PointD Location { get; set; }
+
+        [DataMember]
+        public TSData Data { get; set; }
+
+        [DataMember]
+        public string TsFile { get; set; }
+
+        [DataMember]
+        public string TsfileItemName { get; set; }
     }
 }
