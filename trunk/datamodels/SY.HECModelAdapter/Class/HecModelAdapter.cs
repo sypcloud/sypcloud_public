@@ -94,7 +94,7 @@ namespace SY.HECModelAdapter
                         }
                     }
                 }
-                string currentPlanFilepath = tPrjFile1.DirectoryName + @"\" + PlanFile;
+                currentPlanFilepath = tPrjFile1.DirectoryName + @"\" + PlanFile;
                 #endregion
 
                 #region//解析拓扑信息
@@ -1431,6 +1431,32 @@ namespace SY.HECModelAdapter
             }
         }
 
+        public void SetSimulationTime(ModelTime modeltime)
+        {
+            try
+            {
+                string[] lines = System.IO.File.ReadAllLines(currentPlanFilepath);
+                foreach (string line1 in lines)
+                {
+                    if (line1.Contains("Simulation Date="))
+                    {
+                        var st1 = ConvertYMD2DateStr(modeltime.StartTime.Year, modeltime.StartTime.Month, modeltime.StartTime.Day);
+                        var st2 = ConvertYMD2DateStr(modeltime.EndTime.Year, modeltime.EndTime.Month, modeltime.EndTime.Day);
+                        var ls = "Simulation Date=" + st1 + "," + 
+                            modeltime.StartTime.Hour + ":" + modeltime.StartTime.Minute + ":" + modeltime.StartTime.Second +","+
+                            st2+","+
+                            modeltime.EndTime.Hour + ":" + modeltime.EndTime.Minute + ":" + modeltime.EndTime.Second;
+                        lines[lines.ToList().IndexOf(line1)] = ls;
+                    }
+                }
+                File.WriteAllLines(currentPlanFilepath, lines);
+            }
+            catch(Exception ex)
+            {
+                CommonUtility.Log(ex.Message);
+            }
+        }
+
         public List<RiverSegModelResults> GetResults(DateTime startTime, DateTime endTime,
             string Projection, int centralLgtd)
         {
@@ -1589,6 +1615,8 @@ namespace SY.HECModelAdapter
         /// 结果输出时间步数
         /// </summary>
         public int OutputTimeStepNo { get; set; }
+
+        private string currentPlanFilepath;
 
         public HEC_DM ModelTopo { get; set; }
 
@@ -1828,7 +1856,9 @@ namespace SY.HECModelAdapter
             tNewLines.Add("Boundary Location="
                 + padding16(theBoundary.Location3.riverName) + ","
                 + padding16(theBoundary.Location3.reachName) + ","
-                + padding8(theBoundary.Location3.station) + ","
+                + padding8(theBoundary.HDType == enumHDBoundaryType.侧向流量? 
+                theBoundary.Location3.station+","+ theBoundary.Location3.station2
+                : theBoundary.Location3.station) + ","
                 + padding8("") + ","
                 + padding16("") + ","
                 + padding16("") + ","
@@ -1843,6 +1873,10 @@ namespace SY.HECModelAdapter
             else if (theBoundary.HDType == enumHDBoundaryType.水位)
             {
                 tNewLines.Add("Stage Hydrograph=" + theBoundary.Value.Count);
+            }
+            else if (theBoundary.HDType == enumHDBoundaryType.侧向流量)
+            {
+                tNewLines.Add("Uniform Lateral Inflow Hydrograph=" + theBoundary.Value.Count);
             }
             else
             {
