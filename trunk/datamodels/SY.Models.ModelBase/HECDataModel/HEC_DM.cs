@@ -23,6 +23,7 @@ namespace SY.Models.ModelBase
         public string Subbasin { get; set; }        
         public string Area { get; set; }
         public string Canopy { get; set; }
+        public string Allow_Simultaneous_Precip_Et { get; set; }
         public string Plant_Uptake_Method { get; set; }
         public string Surface { get; set; }
         public string LossRate { get; set; }

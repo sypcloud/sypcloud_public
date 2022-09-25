@@ -49,8 +49,8 @@ namespace SY.Models.ModelBase
         [DataMember]
         public float Flow { get; set; }
 
-        [DataMember]
-        public float Concetration { get; set; }
+        //[DataMember]
+        //public float Concetration { get; set; }
 
         //*************tt-2018-9-20
         [DataMember]
@@ -133,6 +133,16 @@ namespace SY.Models.ModelBase
         [DataMember]
         public List<string> Pollutants { get; set; }
 
+        [DataMember]
+        public List<List<TSData>> Concetration { get; set; }
+
+        [DataMember]
+        public List<List<TSData>> ObsConcetration { get; set; }
+        /// <summary>
+        /// 初始浓度
+        /// </summary>
+        [DataMember]
+        public List<List<TSData>> IntConcetration { get; set; }
 
         [DataMember]
         public RiverStation Location3 { get; set; }
@@ -145,5 +155,11 @@ namespace SY.Models.ModelBase
         /// </summary>
         [DataMember]
         public string IntervalStr { get; set; }
+
+        // 临时
+        [DataMember]
+        public List<string> StuctureBnd { get; set; }
+
+        
     }
 }

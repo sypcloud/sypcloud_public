@@ -61,6 +61,46 @@ namespace SY.HECModelAdapter
                 return null;
             }
         }
+
+        public List<Tuple<string, float, float>> GetPeakFlow(List<string> keys, string dataType = "Outflow Maximum")
+        {
+            List<Tuple<string, float, float>> res = new List<Tuple<string, float, float>>();
+            try
+            {
+                foreach (HmsModelResultsDM.StatisticsRow statistic in this.resultsDM.Statistics)
+                {
+                    if (keys != null)
+                    {
+                        if (keys.Contains(statistic.BasinElementRow.name))
+                        {
+                            var area =float.Parse( statistic.BasinElementRow.GetDrainageAreaRows()[0].area);
+                            var statisticMeasures = statistic.GetStatisticMeasureRows();
+                            foreach (HmsModelResultsDM.StatisticMeasureRow measure in statisticMeasures)
+                            {
+                                if (measure.type == dataType)
+                                    res.Add(Tuple.Create<string, float, float>(statistic.BasinElementRow.name, area, float.Parse(measure.value)));
+                            }
+                        }
+                    }
+                    else
+                    {
+                        var area =float.Parse( statistic.BasinElementRow.GetDrainageAreaRows()[0].area);
+                        var statisticMeasures = statistic.GetStatisticMeasureRows();
+                        foreach (HmsModelResultsDM.StatisticMeasureRow measure in statisticMeasures)
+                        {
+                            if (measure.type == dataType)
+                                res.Add(Tuple.Create<string, float, float>(statistic.BasinElementRow.name, area, float.Parse(measure.value)));
+                        }
+                    }
+                }
+                return res;
+            }
+            catch (Exception ex)
+            {
+                Common.CommonUtility.Log(ex.Message);
+                return null;
+            }
+        }
         
         public HMS_BASIN_DM GetBasin(string basinFile)
         {
@@ -164,6 +204,7 @@ End:";
                     contents.AppendLine("     Downstream: " + subbasin.Downstream);
                     contents.AppendLine("");
                     contents.AppendLine("     Canopy: " + subbasin.Canopy);
+                    contents.AppendLine("     Allow Simultaneous Precip Et: "+subbasin.Allow_Simultaneous_Precip_Et);
                     contents.AppendLine("     Plant Uptake Method: " + subbasin.Plant_Uptake_Method);
                     contents.AppendLine("");
                     contents.AppendLine("     Surface: " + subbasin.Surface);
@@ -171,7 +212,7 @@ End:";
                     contents.AppendLine("     LossRate: " + subbasin.LossRate);
                     contents.AppendLine("     Percent Impervious Area: " + subbasin.Percent_Impervious_Area);
                     contents.AppendLine("     Curve Number: " + subbasin.Curve_Number);
-                    contents.AppendLine("     Initial Abstraction: " + subbasin.Initial_Abstraction);
+                    //contents.AppendLine("     Initial Abstraction: " + subbasin.Initial_Abstraction);
                     contents.AppendLine("");
                     contents.AppendLine("     Transform: " + subbasin.Transform);
                     contents.AppendLine("     Lag: " + subbasin.Lag);
@@ -212,7 +253,7 @@ End:";
                     contents.AppendLine("     Route: " + reach.Route);
                     contents.AppendLine("     Muskingum K: " + reach.Muskingum_K);
                     contents.AppendLine("     Muskingum x: " + reach.Muskingum_X);
-                    contents.AppendLine("     Muskingum Steps: " + reach.Muskingum_X);
+                    contents.AppendLine("     Muskingum Steps: " + reach.Muskingum_Steps);
                     contents.AppendLine("     Channel Loss: " + reach.Channel_Loss);
                     contents.AppendLine("End:");
                     contents.AppendLine("");
@@ -330,13 +371,13 @@ End:";
             subbasin.Area = lines[startOffset + 7].Replace("Area:", "").Trim();
             subbasin.Downstream = lines[startOffset + 8].Replace("Downstream:", "").Trim();
             subbasin.Canopy = lines[startOffset + 10].Replace("Canopy:", "").Trim();
-            startOffset++;
-            subbasin.Plant_Uptake_Method = lines[startOffset + 11].Replace("Plant Uptake Method:", "").Trim();
-            subbasin.Surface = lines[startOffset + 13].Replace("Surface:", "").Trim();
-            subbasin.LossRate = lines[startOffset + 15].Replace("LossRate:", "").Trim();
-            subbasin.Percent_Impervious_Area = lines[startOffset + 16].Replace("Percent Impervious Area:", "").Trim();
-            subbasin.Curve_Number = lines[startOffset + 17].Replace("Curve Number:", "").Trim();
-            subbasin.Initial_Abstraction = lines[startOffset + 18].Replace("Initial Abstraction:", "").Trim();
+            subbasin.Allow_Simultaneous_Precip_Et = lines[startOffset + 11].Replace("Allow Simultaneous Precip Et:", "").Trim();
+            subbasin.Plant_Uptake_Method = lines[startOffset + 12].Replace("Plant Uptake Method:", "").Trim();
+            subbasin.Surface = lines[startOffset + 14].Replace("Surface:", "").Trim();
+            subbasin.LossRate = lines[startOffset + 16].Replace("LossRate:", "").Trim();
+            subbasin.Percent_Impervious_Area = lines[startOffset + 17].Replace("Percent Impervious Area:", "").Trim();
+            subbasin.Curve_Number = lines[startOffset + 18].Replace("Curve Number:", "").Trim();
+            //subbasin.Initial_Abstraction = lines[startOffset + 18].Replace("Initial Abstraction:", "").Trim();
             subbasin.Transform = lines[startOffset + 20].Replace("Transform:", "").Trim();
             subbasin.Lag = lines[startOffset + 21].Replace("Lag:", "").Trim();
             subbasin.Unitgraph_Type = lines[startOffset + 22].Replace("Unitgraph Type:", "").Trim();
@@ -353,6 +394,8 @@ End:";
             juction.Canvas_Y = lines[startOffset + 4].Replace("Canvas Y:", "").Trim();
             juction.Label_X = lines[startOffset + 5].Replace("Label X:", "").Trim();
             juction.Label_Y = lines[startOffset + 6].Replace("Label Y:", "").Trim();
+            if(lines[startOffset + 7].Trim().StartsWith("Downstream"))
+                juction.Downstream = lines[startOffset + 7].Replace("Downstream:", "").Trim();
             return juction;
         }
         private HMS_REACH_DM makeReachLines(string[] lines, int startOffset)
@@ -369,7 +412,10 @@ End:";
             reach.Label_Y = lines[startOffset + 8].Replace("Label Y:", "").Trim();
             reach.Downstream = lines[startOffset + 9].Replace("Downstream:", "").Trim();
             reach.Route = lines[startOffset + 11].Replace("Route:", "").Trim();
-            reach.Channel_Loss = lines[startOffset + 12].Replace("Channel Loss:", "").Trim();
+            reach.Muskingum_K =float.Parse(lines[startOffset + 12].Replace("Muskingum K:", "").Trim());
+            reach.Muskingum_X =float.Parse(lines[startOffset + 13].Replace("Muskingum x:", "").Trim());
+            reach.Muskingum_Steps =int.Parse(lines[startOffset + 14].Replace("Muskingum Steps:", "").Trim());
+            reach.Channel_Loss = lines[startOffset + 15].Replace("Channel Loss:", "").Trim();
             return reach;
         }
     }

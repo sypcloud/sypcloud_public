@@ -15,6 +15,8 @@ namespace SY.Models.ModelBase
 
         HDParameter HdPara { get; set; }
 
+        WQParameter WqPara { get; set; }
+
     }
 
 
@@ -53,6 +55,17 @@ namespace SY.Models.ModelBase
         public float InitialGlobalVSpeed { get; set; }
         //****************tt-2018-9-14
 
+        [DataMember]
+        public RiverStation Location3 { get; set; }
+
+        [DataMember]
+        public List<string> Pollutants { get; set; }
+
+        [DataMember]
+        public List<float> Concetration { get; set; }
+
+        [DataMember]
+        public List<float> Dispersion { get; set; }
     }
 
     [DataContract]
@@ -110,4 +123,15 @@ namespace SY.Models.ModelBase
     }
     //*****************tt-2018-9-14
 
+    public class WQParameter
+    {
+        [DataMember]
+        public RiverStation Location3 { get; set; }
+
+        [DataMember]
+        public List<string> Pollutants { get; set; }
+
+        [DataMember]
+        public List<float> Dispersion { get; set; }
+    }
 }

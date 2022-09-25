@@ -31,6 +31,10 @@ namespace SY.Models.ModelBase
         [DataMember]
         public HDParameter HdPara { get; set; }
 
+        [DataMember]
+        public WQParameter WqPara { get; set; }
+
+
         //*****************tt-2018-9-14
 
     }

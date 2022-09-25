@@ -64,6 +64,8 @@ namespace SY.Models.ModelBase
         流量,        
         水位流量关系曲线,
         侧向流量,
+        时间控制闸门,
+        水位控制闸门,
     }
 
     public enum enumWQBoundaryType
@@ -89,7 +91,7 @@ namespace SY.Models.ModelBase
 
         float Flow { get; set; }
 
-        float Concetration { get; set; }
+        //float Concetration { get; set; }
 
         float NuclideDoes { get; set; }
 
