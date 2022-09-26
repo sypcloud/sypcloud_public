@@ -37,15 +37,18 @@
 - 为履历增添经历
 
 ### 协作入口
+- 工具箱软件开发、业务系统开发协作需要具备一定的程序语言基础、程序开发基础，如基本了解fortran、c、.net、python、js等语言，基本了解vs studio、vs code等开发编译工具。
+- 文档协作，需了解基本的Markdown语法。
 
 > 源代码库
->- [前后端（桌面端）一体开发平台（私库）](https://gitee.com/hydrojip/sypcloud_v1.git)
->- [Vue前端开发平台（私库）](https://gitee.com/hydrojip/syp_web.git)
->- [GIS桌面端（WaterGIS）（私库）](https://gitee.com/watercad/watergis.git)
+>- [**sypcloud**: .net前后端（桌面端）一体开发平台（私库）](https://gitee.com/hydrojip/sypcloud_v1.git)
+>[**py_django_vue**：python前后端一体开发平台（私库）](https://gitee.com/hydrojip/py_django_vue.git)
+>- [**syp_web**: Vue前端开发平台（私库）](https://gitee.com/hydrojip/syp_web.git)
+>- [**watergis**: GIS桌面端（WaterGIS）（私库）](https://gitee.com/watercad/watergis.git)
 >- [数据模型及水模型适配库（已公开HEC-RAS）（公开库）](https://gitee.com/hydrojip/sypcloud_public.git)
->- [Python后端开发平台（公开库）](https://gitee.com/hydrojip/psyp.git)
->- [传播平台，嗖嗖社区Blog源代码(私库)](https://gitee.com/hydrojip/ssblog.git)
->- [统一后台运行包（部署包）](https://gitee.com/hydrojip/sypcloud_server.git)
+>- [**psyp**：Python后端开发平台（公开库）](https://gitee.com/hydrojip/psyp.git)
+>- [**ssblog**：传播平台，嗖嗖社区Blog源代码(私库)](https://gitee.com/hydrojip/ssblog.git)
+>- [**sypcloud_server**：统一后台运行包（部署包）](https://gitee.com/hydrojip/sypcloud_server.git)
 
 > 文档协作编辑地址
 > >编辑平台
@@ -65,6 +68,7 @@
 >- [Delft3D模型](http://md.toolsbox.org.cn/s/-eWSUMlkc)
 >- [WASH123D模型](http://md.toolsbox.org.cn/s/6L0NsSWP4)
 >- [DHI-MIKE模型](http://md.toolsbox.org.cn/s/ahQLvFcvY)
+>- [机器学习水文水质预测](http://md.toolsbox.org.cn/s/xT-IG-g7f)
 >- ...
 >>业务系统开发、模型咨询案例文档
 >- [业务系统开发案例编辑](http://md.toolsbox.org.cn/yKM9SAbxRsaiJkHCXnL_VQ)
@@ -82,6 +86,8 @@
 ### 传播平台
 - [嗖嗖社区博客](http://toolsbox.org.cn/)
 - 公众号
+![地表水环境](/uploads/upload_4b3ff1f3b8b1a8a9c08543b10e541701.png) 
+
 
 ### 项目案例
 - [业务系统](http://md.toolsbox.org.cn/s/QoCmEUEgL)
@@ -91,15 +97,26 @@
 - 数据清单
     - [湖泊水生态模拟](http://md.toolsbox.org.cn/s/J0joHdnCd)
     - [公路工程防洪评价](http://md.toolsbox.org.cn/s/JEeEPa0xF)
+    - [水体达标方案编制](http://md.toolsbox.org.cn/s/FZrecpjiU)
+    - ...
 - 水环境整治方案辅助设计模型咨询
-    - [湿地湖泊]
+    - [湿地湖泊](http://md.toolsbox.org.cn/s/LUrtMNVN_)
     - 水库
     - 河流
     - 河口
-- 防洪评价
-    - [公路工程防洪评价水文分析]
+- 洪水影响评价
+    - [公路工程防洪评价水文分析](http://md.toolsbox.org.cn/s/ZQUZmZxyM)
     - 桥梁工程防洪评价
-
+    - ...
+- 地表水环境影响评价
+    - 石化行业地表水环境影响评价
+    - 引调水环境影响评价
+    - ...
+- 系统开发需求分析
+    - [智慧环保之水环境子系统建设需求](http://md.toolsbox.org.cn/s/1yV708zS7)
+    - 洪水预报系统建设需求
+    - 水质预报预警建设需求
+    - ...
 
 ### 参与贡献
 
