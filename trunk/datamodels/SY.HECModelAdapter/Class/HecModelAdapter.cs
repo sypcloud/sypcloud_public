@@ -25,6 +25,10 @@ namespace SY.HECModelAdapter
         private string pythonEngine;
         private static bool isRunOk = false;
         private string currentPlanFilepath;
+        /// <summary>
+        /// 模拟的水质组分
+        /// </summary>
+        private List<string> Components;
         //private static List<string> calmsg = new List<string>();
         #endregion
 
@@ -71,25 +75,25 @@ namespace SY.HECModelAdapter
                         if (line1.Contains("Proj Title="))
                         {
                             ProjTitle = line1.Replace("Proj Title=", "");
-                            DSSFile = ProjTitle + "." + "dss";
+                            DSSFile = prjName + "." + "dss";
                         }
                         if (line1.Contains("Current Plan="))
                         {
-                            PlanFile = ProjTitle + "." + line1.Replace("Current Plan=", "");
+                            PlanFile = prjName + "." + line1.Replace("Current Plan=", "");
                         }
                         if (line1.Contains("Geom File="))
                         {
-                            Geofile = ProjTitle + "." + line1.Replace("Geom File=", "");
+                            Geofile = prjName + "." + line1.Replace("Geom File=", "");
                         }
                         /// boundaryFile
                         /// 赋值 BoundaryFile 属性
                         if (line1.Contains("Unsteady File="))
                         {
-                            UnsteadyBoundaryFile = ProjTitle + "." + line1.Replace("Unsteady File=", "");
+                            UnsteadyBoundaryFile = prjName + "." + line1.Replace("Unsteady File=", "");
                         }
                         if (line1.Contains("Water Quality File="))
                         {
-                            WqFile = ProjTitle + "." + line1.Replace("Water Quality File=", "");
+                            WqFile = prjName + "." + line1.Replace("Water Quality File=", "");
                         }
                     }
                 }
@@ -132,15 +136,35 @@ namespace SY.HECModelAdapter
                                     //}
                                     if (tempParts[1] != "0000")
                                     {
-                                        startHour = int.Parse(tempParts[1].Split(':')[0]);
-                                        startMinu = int.Parse(tempParts[1].Split(':')[1]);
-                                        startSec = int.Parse(tempParts[1].Split(':')[2]);
+                                        var stime = tempParts[1].Split(':');
+                                        if (stime.Count() == 1) continue;
+                                        if (stime.Count() == 2)
+                                        {
+                                            startHour = int.Parse(tempParts[1].Split(':')[0]);
+                                            startMinu = int.Parse(tempParts[1].Split(':')[1]);
+                                        }
+                                        else
+                                        {
+                                            startHour = int.Parse(tempParts[1].Split(':')[0]);
+                                            startMinu = int.Parse(tempParts[1].Split(':')[1]);
+                                            startSec = int.Parse(tempParts[1].Split(':')[2]);
+                                        }
                                     }
                                     if (tempParts[3] != "0000")
                                     {
-                                        stopHour = int.Parse(tempParts[3].Split(':')[0]);
-                                        stopMinu = int.Parse(tempParts[3].Split(':')[1]);
-                                        stopSec = int.Parse(tempParts[3].Split(':')[2]);
+                                        var stime = tempParts[1].Split(':');
+                                        if (stime.Count() == 1) continue;
+                                        if (stime.Count() == 2)
+                                        {
+                                            stopHour = int.Parse(tempParts[1].Split(':')[0]);
+                                            stopMinu = int.Parse(tempParts[1].Split(':')[1]);
+                                        }
+                                        else
+                                        {
+                                            stopHour = int.Parse(tempParts[1].Split(':')[0]);
+                                            stopMinu = int.Parse(tempParts[1].Split(':')[1]);
+                                            stopSec = int.Parse(tempParts[1].Split(':')[2]);
+                                        }
                                     }
 
                                     SimulationStartTime = new DateTime(startYear, startMon, startDay, startHour, startMinu, startSec);
@@ -220,6 +244,7 @@ namespace SY.HECModelAdapter
                 BoundaryList = boundaryList;
                 IntConditionList = intConditionList;
                 WqParamList = wqParaList;
+                Components = boundaryList != null && boundaryList.Count > 0 ? boundaryList[0].Pollutants : null;
 
                 #endregion
             }
@@ -769,6 +794,7 @@ namespace SY.HECModelAdapter
                                 cs.Description = sr.ReadLine();
 
                                 JumpUnuseLine(ref sr, ref line);
+                                line = sr.ReadLine(); // SKIP END
                             }
                             if (line.StartsWith("Node Last Edited Time="))
                             {
@@ -822,11 +848,13 @@ namespace SY.HECModelAdapter
 
                             if (line.StartsWith("Exp/Cntr(USF)"))
                             {
+                                line = sr.ReadLine();
                                 JumpUnuseLine(ref sr, ref line);
                             }
 
                             if (line.StartsWith("Exp/Cntr"))
                             {
+                                line = sr.ReadLine();
                                 JumpUnuseLine(ref sr, ref line);
                             }
 
@@ -1499,7 +1527,7 @@ namespace SY.HECModelAdapter
                 newFileLines.AddRange(lastlines);
                 System.IO.File.WriteAllLines(tBoundaryFilepath, newFileLines);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 CommonUtility.Log(ex.Message);
             }
@@ -1546,7 +1574,10 @@ namespace SY.HECModelAdapter
                     {
                         var listWl = new List<double[]>();
                         var listQ = new List<double[]>();
+                        var tpWQ = new List<Tuple<string, double[]>>();
                         var stations = new List<double>();
+
+                        DssPathCollection paths = dssr.GetCatalog();
 
                         //直接在这里根据时间、结果保存步长、特征值标识写全path字符串
                         //按时间遍历取值，赋给RiverSegStatisctResults对象
@@ -1554,40 +1585,87 @@ namespace SY.HECModelAdapter
                         var currTime = startTime;
                         while (currTime < endTime)
                         {
-                            currTime = currTime.AddSeconds(OutputTimeInterval);
                             var stime = ConvertYMD2DateStr(currTime.Year, currTime.Month, currTime.Day);
                             var wl_path = "/" + river.RvrName.ToUpper() + " " + river.RchName.ToUpper() + "//LOCATION-ELEV//" +
-                                stime + " 0000/SINGLERIVER/";
+                                stime + " " + currTime.ToString("HH:mm").Replace(":", "") + "/STEAD STATE SIMULATION/";//"/SINGLERIVER/";
                             var q_path = "/" + river.RvrName.ToUpper() + " " + river.RchName.ToUpper() + "//LOCATION-FLOW//" +
-                                stime + " 0000/SINGLERIVER/";
+                                stime + " " + currTime.ToString("HH:mm").Replace(":", "") + "/STEAD STATE SIMULATION/";//"/SINGLERIVER/";
 
-                            DssPathCollection paths = dssr.GetCatalog();
                             //var elevpath = new List<DssPath>();
-                            for (int j = 0; j < paths.Count; j++)
+
+                            var qwl = (from r in paths where r.FullPath.Contains(wl_path) select r).FirstOrDefault();
+                            if (qwl == null)
                             {
-                                if (paths[j].FullPath.Contains(wl_path))
-                                {
-                                    //elevpath.Add(paths[j]);
-                                    var pd = dssr.GetPairedData(paths[j].FullPath);
-                                    if (i == 0) stations = pd.Ordinates.ToList(); //桩号
-                                    listWl.Add(pd.Values[0]); //水位
-                                }
-                                else if (paths[j].FullPath.Contains(q_path))
-                                {
-                                    var pd = dssr.GetPairedData(paths[j].FullPath);
-                                    //var stations = pd.Ordinates; //桩号
-                                    listQ.Add(pd.Values[0]); //流量
-                                }
+                                i++;
+                                currTime = currTime.AddSeconds(OutputTimeInterval);
+                                continue;
                             }
+                            var pdwl = dssr.GetPairedData(qwl.FullPath);
+                            if (i == 0) stations = pdwl.Ordinates.ToList(); //桩号
+                            listWl.Add(pdwl.Values[0]); //水位
+                            var qq = (from r in paths where r.FullPath.Contains(wl_path) select r).FirstOrDefault();
+                            if (qq == null)
+                            {
+                                i++;
+                                currTime = currTime.AddSeconds(OutputTimeInterval);
+                                continue;
+                            }
+                            var pdq = dssr.GetPairedData(qq.FullPath);
+                            //var stations = pd.Ordinates; //桩号
+                            listQ.Add(pdq.Values[0]); //流量
+
+                            //for (int j = 0; j < paths.Count; j++)
+                            //{
+                            //    if (paths[j].FullPath.Contains(wl_path))
+                            //    {
+                            //        //elevpath.Add(paths[j]);
+                            //        var pd = dssr.GetPairedData(paths[j].FullPath);
+                            //        if (i == 0) stations = pd.Ordinates.ToList(); //桩号
+                            //        listWl.Add(pd.Values[0]); //水位
+                            //    }
+                            //    else if (paths[j].FullPath.Contains(q_path))
+                            //    {
+                            //        var pd = dssr.GetPairedData(paths[j].FullPath);
+                            //        //var stations = pd.Ordinates; //桩号
+                            //        listQ.Add(pd.Values[0]); //流量
+                            //    }
+                            //}
 
                             i++;
+                            currTime = currTime.AddSeconds(OutputTimeInterval);
+                        }
+
+                        stations.Sort();
+
+                        //获取水质结果
+                        if (Components != null)
+                        {
+                            var sdate = ConvertYMD2DateStr(startTime.Year, startTime.Month, startTime.Day);
+                            var edate = ConvertYMD2DateStr(endTime.Year, endTime.Month, endTime.Day);
+
+                            foreach (var cp in Components)
+                            {
+                                //foreach (var st in stations)
+                                {
+                                    //sdate = "01APR2022";
+                                    var wq_path = "/" + river.RvrName.ToUpper() + " " + river.RchName.ToUpper() + "/" + river.StChainage + "/" + cp + "/" +
+                                    sdate + "/1HOUR/STEAD STATE SIMULATION/";
+                                    //var q = (from r in paths where r.FullPath.Contains(wq_path) select r).FirstOrDefault();
+                                    //if (q == null) continue;
+                                    if (!dssr.PathExists(wq_path)) continue;
+                                    var pd = dssr.GetTimeSeries(new DssPath(wq_path));
+                                    var sti = pd.Times.ToList().IndexOf((from r in pd.Times where r >= startTime select r).FirstOrDefault());
+                                    var eti = pd.Times.ToList().IndexOf((from r in pd.Times where r <= endTime select r).LastOrDefault());
+                                    var cpv = pd.Values.ToList().Skip(sti).Take(eti+1).ToList();
+                                    tpWQ.Add(Tuple.Create(cp, cpv.ToArray()));
+                                    //}
+                                }
+                            }
                         }
 
                         //根据桩号（也即距离，计算河段的坐标）
                         var riverpts = river.Points;
-
                         riverpts.Reverse();
-                        stations.Sort();
                         var uitl = new Utility.Utility();
                         for (int m = 0; m < stations.Count; m++)
                         {
@@ -1629,6 +1707,18 @@ namespace SY.HECModelAdapter
                             seg.MaxWaterLevel = seg.WaterLevel.Max();
                             seg.MinWaterLevel = seg.WaterLevel.Min();
                             seg.AvgWaterLevel = seg.WaterLevel.Average();
+
+                            seg.Quality = tpWQ;
+                            seg.MaxQuality = new List<Tuple<string, double>>();
+                            seg.MinQuality = new List<Tuple<string, double>>();
+                            seg.AvgQuality = new List<Tuple<string, double>>();
+
+                            foreach (var cp in tpWQ)
+                            {
+                                seg.MaxQuality.Add(Tuple.Create(cp.Item1, cp.Item2.Max()));
+                                seg.MinQuality.Add(Tuple.Create(cp.Item1, cp.Item2.Min()));
+                                seg.AvgQuality.Add(Tuple.Create(cp.Item1, cp.Item2.Average()));
+                            }
 
                             segpts.ForEach(x => seg.LineGeoString += (x.X.ToString() + " " + x.Y.ToString() + ","));
                             seg.LineGeoString = "LINESTRING(" + seg.LineGeoString.TrimEnd(',') + ")";
@@ -1867,19 +1957,19 @@ namespace SY.HECModelAdapter
                     }
                 }
 
-                if(ifline.StartsWith("Gate Name="))
+                if (ifline.StartsWith("Gate Name="))
                 {
                     boundary.HDType = enumHDBoundaryType.时间控制闸门;
                     boundary.StuctureBnd = new List<string>();
                     boundary.StuctureBnd.Add(lines[startOffset]);
-                    boundary.StuctureBnd.Add(lines[startOffset+1]);
-                    boundary.StuctureBnd.Add(lines[startOffset+2]);
-                    boundary.StuctureBnd.Add(lines[startOffset+3]);
-                    boundary.StuctureBnd.Add(lines[startOffset+4]);
-                    boundary.StuctureBnd.Add(lines[startOffset+5]);
-                    boundary.StuctureBnd.Add(lines[startOffset+6]);
-                    boundary.StuctureBnd.Add(lines[startOffset+7]);
-                    boundary.StuctureBnd.Add(lines[startOffset+8]);
+                    boundary.StuctureBnd.Add(lines[startOffset + 1]);
+                    boundary.StuctureBnd.Add(lines[startOffset + 2]);
+                    boundary.StuctureBnd.Add(lines[startOffset + 3]);
+                    boundary.StuctureBnd.Add(lines[startOffset + 4]);
+                    boundary.StuctureBnd.Add(lines[startOffset + 5]);
+                    boundary.StuctureBnd.Add(lines[startOffset + 6]);
+                    boundary.StuctureBnd.Add(lines[startOffset + 7]);
+                    boundary.StuctureBnd.Add(lines[startOffset + 8]);
                 }
 
                 if (ifline.StartsWith("Elev Controlled Gate="))
@@ -1925,7 +2015,7 @@ namespace SY.HECModelAdapter
             {
                 var location = lines[startOffset].Replace("BC=", "").Trim().Split(',');
                 var bd = (from r in boundaryList
-                          where r !=null
+                          where r != null
                           && r.Location3.riverName != null
                           && r.Location3.riverName.Equals(location[0])
                           && r.Location3.reachName.Equals(location[1])
@@ -1945,7 +2035,8 @@ namespace SY.HECModelAdapter
                     else
                     {
                         if (!bd.Pollutants.Contains(componentName))
-                        { bd.Pollutants.Add(componentName);
+                        {
+                            bd.Pollutants.Add(componentName);
                             bd.Concetration.Add(new List<TSData>());
                             bd.ObsConcetration.Add(new List<TSData>());
                         }
@@ -1967,7 +2058,7 @@ namespace SY.HECModelAdapter
                             //}
                             //else
                             //{
-                                bd.ObsConcetration[pindex].AddRange(new List<TSData>()
+                            bd.ObsConcetration[pindex].AddRange(new List<TSData>()
                                 {
                                     new TSData(){ DT=startDt,Data=obsConcetration },
                                     new TSData(){ DT=endDt,Data=obsConcetration },
@@ -1989,7 +2080,7 @@ namespace SY.HECModelAdapter
                             //}
                             //else
                             //{
-                                bd.ObsConcetration[pindex].AddRange(new List<TSData>()
+                            bd.ObsConcetration[pindex].AddRange(new List<TSData>()
                                 {
                                     new TSData(){ DT=startDt,Data=obsConcetration },
                                     new TSData(){ DT=endDt,Data=obsConcetration },
@@ -2006,7 +2097,7 @@ namespace SY.HECModelAdapter
                             //}
                             //else
                             //{
-                                bd.Concetration[pindex].AddRange(new List<TSData>()
+                            bd.Concetration[pindex].AddRange(new List<TSData>()
                                 {
                                     new TSData(){ DT=startDt,Data=concetration },
                                     new TSData(){ DT=endDt,Data=concetration },
@@ -2199,7 +2290,7 @@ namespace SY.HECModelAdapter
                 || theBoundary.HDType == enumHDBoundaryType.水位控制闸门)
             {
                 tNewLines = theBoundary.StuctureBnd;
-                return tNewLines.ToArray(); 
+                return tNewLines.ToArray();
             }
             tNewLines.Add("Boundary Location="
                 + padding16(theBoundary.Location3.riverName) + ","
@@ -2222,12 +2313,12 @@ namespace SY.HECModelAdapter
             {
                 tNewLines.Add("Stage Hydrograph=" + theBoundary.Value.Count);
             }
-            else if (theBoundary.HDType == enumHDBoundaryType.侧向流量 
+            else if (theBoundary.HDType == enumHDBoundaryType.侧向流量
                 && theBoundary.BndDescription == enumBoundaryDescription.DistributedSource)
             {
                 tNewLines.Add("Uniform Lateral Inflow Hydrograph=" + theBoundary.Value.Count);
             }
-            else if (theBoundary.HDType == enumHDBoundaryType.侧向流量 
+            else if (theBoundary.HDType == enumHDBoundaryType.侧向流量
                 && theBoundary.BndDescription == enumBoundaryDescription.PointSource)
             {
                 tNewLines.Add("Lateral Inflow Hydrograph=" + theBoundary.Value.Count);
@@ -2260,7 +2351,7 @@ namespace SY.HECModelAdapter
             return tNewLines.ToArray();
         }
 
-        private string[] writeWqBoundaryToLines(string theComponent,List<Boundary> boundaryList)
+        private string[] writeWqBoundaryToLines(string theComponent, List<Boundary> boundaryList)
         {
             try
             {
@@ -2292,7 +2383,7 @@ namespace SY.HECModelAdapter
 
                 return tNewLines.ToArray();
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 CommonUtility.Log(ex.Message);
                 return null;
