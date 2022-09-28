@@ -11,15 +11,24 @@ namespace SY.Models.ModelBase
     [Serializable]
     public class ModelTime:IModelTime
     {
+        /// <summary>
+        /// 模型计算开始时间
+        /// </summary>
         [DataMember]
         public DateTime StartTime { get; set; }
-
+        /// <summary>
+        /// 模型计算结束时间
+        /// </summary>
         [DataMember]
         public DateTime EndTime { get; set; }
-
+        /// <summary>
+        /// 预报时刻
+        /// </summary>
         [DataMember]
         public DateTime ForecastingTime { get; set; }
-
+        /// <summary>
+        /// 预见期
+        /// </summary>
         [DataMember]
         public double ForecastedTime { get; set; }
 

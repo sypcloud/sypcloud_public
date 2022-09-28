@@ -44,13 +44,16 @@ namespace SY.HECModelAdapter
             config = ConfigurationManager.OpenExeConfiguration(assemblyPath);
             pythonEngine = config.AppSettings.Settings["PythonEngine"].Value;
         }
-
-        public HecModelAdapter(string folderPath, string prjName = "MZH")
+        /// <summary>
+        /// 初始化：指定HEC-RAS模型文件夹和工程名称，实现对模型边界、参数等配置文件的识别；
+        /// 实现对模型空间拓扑（河网、断面数据）的识别；模拟时间、边界时间序列数据的识别。
+        /// </summary>
+        /// <param name="folderPath">HEC-RAS模型文件夹</param>
+        /// <param name="prjName">工程名称</param>
+        public HecModelAdapter(string folderPath, string prjName = "")
         {
             ProjectDir = folderPath;
-            //wf （1）在Boundary类里扩展
-            //    (2) 实现一个HecModelAdapter构造函数，增加一个属性 List<Boundary>
-            //    (3) 传入一个目录，首先读取prj文件，然后确认u0x和p0x文件，读取数据填充到List<Boundary>属性中，供贾总调用。
+
             var boundaryList = new List<Boundary>();
             var intConditionList = new List<InitialCondition>();
             var wqParaList = new List<WQParameter>();
@@ -60,48 +63,47 @@ namespace SY.HECModelAdapter
                 #region//获取文件配置信息
                 // 遍历目录下全部文件，找到第一个*.prj工程文件路径
                 DirectoryInfo tDir = new DirectoryInfo(folderPath);
-                FileInfo tPrjFile1 = null;
-                foreach (FileInfo tfi in tDir.GetFiles(prjName + ".prj"))
+
+                if (prjName == "")
                 {
-                    tPrjFile1 = tfi;
-                    break;
+                    ProjectFile = Directory.GetFiles(folderPath, "*.prj", SearchOption.TopDirectoryOnly).FirstOrDefault();
+                    prjName = Path.GetFileNameWithoutExtension(ProjectFile);
                 }
 
                 //step1 读取prj文件，获取Current Plan的值
                 {
-                    string[] lines = System.IO.File.ReadAllLines(tPrjFile1.FullName);
+                    string[] lines = System.IO.File.ReadAllLines(ProjectFile);
                     foreach (string line1 in lines)
                     {
                         if (line1.Contains("Proj Title="))
                         {
                             ProjTitle = line1.Replace("Proj Title=", "");
-                            DSSFile = prjName + "." + "dss";
+                            DSSFile = Path.Combine(ProjectDir, prjName + "." + "dss");
                         }
                         if (line1.Contains("Current Plan="))
                         {
-                            PlanFile = prjName + "." + line1.Replace("Current Plan=", "");
+                            PlanFile = Path.Combine(ProjectDir, prjName + "." + line1.Replace("Current Plan=", ""));
                         }
                         if (line1.Contains("Geom File="))
                         {
-                            Geofile = prjName + "." + line1.Replace("Geom File=", "");
+                            Geofile = Path.Combine(ProjectDir, prjName + "." + line1.Replace("Geom File=", ""));
                         }
                         /// boundaryFile
                         /// 赋值 BoundaryFile 属性
                         if (line1.Contains("Unsteady File="))
                         {
-                            UnsteadyBoundaryFile = prjName + "." + line1.Replace("Unsteady File=", "");
+                            UnsteadyBoundaryFile = Path.Combine(ProjectDir, prjName + "." + line1.Replace("Unsteady File=", ""));
                         }
                         if (line1.Contains("Water Quality File="))
                         {
-                            WqFile = prjName + "." + line1.Replace("Water Quality File=", "");
+                            WqFile = Path.Combine(ProjectDir, prjName + "." + line1.Replace("Water Quality File=", ""));
                         }
                     }
                 }
-                currentPlanFilepath = tPrjFile1.DirectoryName + @"\" + PlanFile;
                 #endregion
 
                 #region//解析拓扑信息
-                ModelTopo = GetGeometry(Path.Combine(ProjectDir, Geofile));
+                ModelTopo = GetGeometry(Path.Combine(folderPath, Geofile));
                 #endregion
 
                 #region//解析模拟方案信息
@@ -111,7 +113,7 @@ namespace SY.HECModelAdapter
                 //DateTime stopDt = new DateTime(2022, 1, 1, 0, 0, 0);
                 string flowFileExtentsion = "";
                 {
-                    string[] lines = System.IO.File.ReadAllLines(currentPlanFilepath);
+                    string[] lines = System.IO.File.ReadAllLines(PlanFile);
                     foreach (string line1 in lines)
                     {
                         if (line1.Contains("Simulation Date="))
@@ -196,10 +198,9 @@ namespace SY.HECModelAdapter
                 #region//解析边界信息
 
                 //step3 读取Unsteady File 文件中的 Boundary数据
-                var flowFilePath = tPrjFile1.DirectoryName + @"\" + UnsteadyBoundaryFile;
-                if (File.Exists(flowFilePath))
+                if (File.Exists(UnsteadyBoundaryFile))
                 {
-                    string[] lines = System.IO.File.ReadAllLines(flowFilePath);
+                    string[] lines = System.IO.File.ReadAllLines(UnsteadyBoundaryFile);
                     for (int iline = 0; iline < lines.Length; ++iline)
                     {
                         if (lines[iline].Contains("Boundary Location="))
@@ -212,10 +213,9 @@ namespace SY.HECModelAdapter
                 }
 
                 //step4 读取water quality边界文件中的水质边界信息
-                var wqFilePath = tPrjFile1.DirectoryName + @"\" + this.WqFile;
-                if (File.Exists(wqFilePath))
+                if (File.Exists(WqFile))
                 {
-                    string[] lines = System.IO.File.ReadAllLines(wqFilePath);
+                    string[] lines = System.IO.File.ReadAllLines(WqFile);
                     for (int iline = 0; iline < lines.Length; iline++)
                     {
                         if (lines[iline].Contains("Constituent="))
@@ -1423,12 +1423,12 @@ namespace SY.HECModelAdapter
         /// 将边界条件数据写入边界文件（类似u01或者u02文件）,注意只写入Boundary Location数据，其他数据从源文件保留 2022-5-28
         /// </summary>
         /// <param name="boundaryList"></param>
-        public void SetBoundary(List<Boundary> boundaryList)
+        public void SetBoundary(List<Boundary> boundaryList,string unsteadyBoundaryFile)
         {
             /// boundaryList 写到 BoundaryFile 文件里。
             /// 
 
-            if (this.UnsteadyBoundaryFile == null || this.UnsteadyBoundaryFile.Equals(""))
+            if (unsteadyBoundaryFile == null || unsteadyBoundaryFile.Equals(""))
             {
                 if (OutputMsg != null)
                 {
@@ -1444,8 +1444,8 @@ namespace SY.HECModelAdapter
             try
             {
                 //step1
-                string tBoundaryFilepath = ProjectDir + @"\" + UnsteadyBoundaryFile;
-                string[] lines = System.IO.File.ReadAllLines(tBoundaryFilepath);
+                //UnsteadyBoundaryFile = ProjectDir + @"\" + UnsteadyBoundaryFile;
+                string[] lines = System.IO.File.ReadAllLines(unsteadyBoundaryFile);
                 List<string> newFileLines = new List<string>();
                 int stepTwoLineOffset = -1;
                 for (int iline = 0; iline < lines.Length; ++iline)
@@ -1478,7 +1478,7 @@ namespace SY.HECModelAdapter
                 }
 
                 //step3 写入老文件
-                System.IO.File.WriteAllLines(tBoundaryFilepath, newFileLines);
+                System.IO.File.WriteAllLines(unsteadyBoundaryFile, newFileLines);
             }
             catch (Exception ex)
             {
@@ -1489,13 +1489,12 @@ namespace SY.HECModelAdapter
             }
         }
 
-        public void SetWqBoundary(List<Boundary> boundaryList)
+        public void SetWqBoundary(List<Boundary> boundaryList,string boundaryFile)
         {
             try
             {
                 //step1
-                string tBoundaryFilepath = ProjectDir + @"\" + WqFile;
-                string[] lines = System.IO.File.ReadAllLines(tBoundaryFilepath);
+                string[] lines = System.IO.File.ReadAllLines(boundaryFile);
                 List<string> newFileLines = new List<string>();
                 int stepTwoLineOffset = -1;
                 for (int iline = 0; iline < lines.Length; ++iline)
@@ -1525,7 +1524,7 @@ namespace SY.HECModelAdapter
                 //step3
                 var lastlines = lines.Skip(newFileLines.Count);
                 newFileLines.AddRange(lastlines);
-                System.IO.File.WriteAllLines(tBoundaryFilepath, newFileLines);
+                System.IO.File.WriteAllLines(boundaryFile, newFileLines);
             }
             catch (Exception ex)
             {
@@ -1533,11 +1532,11 @@ namespace SY.HECModelAdapter
             }
         }
 
-        public void SetSimulationTime(ModelTime modeltime)
+        public void SetSimulationTime(ModelTime modeltime,string planFile)
         {
             try
             {
-                string[] lines = System.IO.File.ReadAllLines(currentPlanFilepath);
+                string[] lines = System.IO.File.ReadAllLines(planFile);
                 foreach (string line1 in lines)
                 {
                     if (line1.Contains("Simulation Date="))
@@ -1551,7 +1550,7 @@ namespace SY.HECModelAdapter
                         lines[lines.ToList().IndexOf(line1)] = ls;
                     }
                 }
-                File.WriteAllLines(currentPlanFilepath, lines);
+                File.WriteAllLines(planFile, lines);
             }
             catch (Exception ex)
             {
@@ -1560,16 +1559,16 @@ namespace SY.HECModelAdapter
         }
 
         public List<RiverSegModelResults> GetResults(DateTime startTime, DateTime endTime,
-            string Projection, int centralLgtd)
+            string Projection, int centralLgtd, HEC_DM modelTopo, string dssfile)
         {
             try
             {
                 List<RiverSegModelResults> res = new List<RiverSegModelResults>();
 
-                using (var dssr = new DssReader(Path.Combine(ProjectDir, DSSFile),
+                using (var dssr = new DssReader(dssfile,
                     DssReader.MethodID.MESS_METHOD_GENERAL_ID, DssReader.LevelID.MESS_LEVEL_CRITICAL))
                 {
-                    var rivers = GetRiverInfo(ModelTopo);
+                    var rivers = GetRiverInfo(modelTopo);
                     foreach (var river in rivers)
                     {
                         var listWl = new List<double[]>();
@@ -1594,11 +1593,17 @@ namespace SY.HECModelAdapter
                             //var elevpath = new List<DssPath>();
 
                             var qwl = (from r in paths where r.FullPath.Contains(wl_path) select r).FirstOrDefault();
-                            if (qwl == null)
+                            if (qwl == null )
                             {
-                                i++;
-                                currTime = currTime.AddSeconds(OutputTimeInterval);
-                                continue;
+                                wl_path = "/" + river.RvrName.ToUpper() + " " + river.RchName.ToUpper() + "//LOCATION-ELEV//" +
+                                stime + " " + currTime.ToString("HH:mm").Replace(":", "") + "/SINGLERIVER/";
+                                qwl = (from r in paths where r.FullPath.Contains(wl_path) select r).FirstOrDefault();
+                                if (qwl == null)
+                                {
+                                    i++;
+                                    currTime = currTime.AddSeconds(OutputTimeInterval);
+                                    continue;
+                                }
                             }
                             var pdwl = dssr.GetPairedData(qwl.FullPath);
                             if (i == 0) stations = pdwl.Ordinates.ToList(); //桩号
@@ -1606,9 +1611,14 @@ namespace SY.HECModelAdapter
                             var qq = (from r in paths where r.FullPath.Contains(wl_path) select r).FirstOrDefault();
                             if (qq == null)
                             {
-                                i++;
-                                currTime = currTime.AddSeconds(OutputTimeInterval);
-                                continue;
+                                q_path = "/" + river.RvrName.ToUpper() + " " + river.RchName.ToUpper() + "//LOCATION-FLOW//" +
+                                stime + " " + currTime.ToString("HH:mm").Replace(":", "") + "/SINGLERIVER/";
+                                if (qq == null)
+                                {
+                                    i++;
+                                    currTime = currTime.AddSeconds(OutputTimeInterval);
+                                    continue;
+                                }
                             }
                             var pdq = dssr.GetPairedData(qq.FullPath);
                             //var stations = pd.Ordinates; //桩号
@@ -1758,6 +1768,7 @@ namespace SY.HECModelAdapter
         public List<Boundary> BoundaryList { get; set; }
         public List<InitialCondition> IntConditionList { get; set; }
         public List<WQParameter> WqParamList { get; set; }
+        public string ProjectFile { get; set; }
         public string ProjectDir { get; set; }
         public string Geofile { get; set; }
         public string ProjTitle { get; set; }
