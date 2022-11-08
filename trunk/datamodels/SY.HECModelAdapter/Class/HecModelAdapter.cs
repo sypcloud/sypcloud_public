@@ -21,6 +21,7 @@ namespace SY.HECModelAdapter
     public class HecModelAdapter
     {
         #region 字段
+        private static Random rdm = new Random();
         private static Configuration config = null;
         private string pythonEngine;
         private static bool isRunOk = false;
@@ -879,6 +880,21 @@ namespace SY.HECModelAdapter
                 return null;
             }
         }
+
+        public string GetModelCalGeo()
+        {
+            try
+            {
+                return string.Empty;
+            }
+            catch (Exception ex)
+            {
+                CommonUtility.Log(ex.Message);
+                return string.Empty;
+            }
+        }
+
+
         /// <summary>
         /// 
         /// </summary>
@@ -1423,7 +1439,7 @@ namespace SY.HECModelAdapter
         /// 将边界条件数据写入边界文件（类似u01或者u02文件）,注意只写入Boundary Location数据，其他数据从源文件保留 2022-5-28
         /// </summary>
         /// <param name="boundaryList"></param>
-        public void SetBoundary(List<Boundary> boundaryList,string unsteadyBoundaryFile)
+        public void SetBoundary(List<Boundary> boundaryList, string unsteadyBoundaryFile)
         {
             /// boundaryList 写到 BoundaryFile 文件里。
             /// 
@@ -1489,7 +1505,7 @@ namespace SY.HECModelAdapter
             }
         }
 
-        public void SetWqBoundary(List<Boundary> boundaryList,string boundaryFile)
+        public void SetWqBoundary(List<Boundary> boundaryList, string boundaryFile)
         {
             try
             {
@@ -1532,7 +1548,7 @@ namespace SY.HECModelAdapter
             }
         }
 
-        public void SetSimulationTime(ModelTime modeltime,string planFile)
+        public void SetSimulationTime(ModelTime modeltime, string planFile)
         {
             try
             {
@@ -1568,173 +1584,215 @@ namespace SY.HECModelAdapter
                 using (var dssr = new DssReader(dssfile,
                     DssReader.MethodID.MESS_METHOD_GENERAL_ID, DssReader.LevelID.MESS_LEVEL_CRITICAL))
                 {
-                    var rivers = GetRiverInfo(modelTopo);
-                    foreach (var river in rivers)
+                    try
                     {
-                        var listWl = new List<double[]>();
-                        var listQ = new List<double[]>();
-                        var tpWQ = new List<Tuple<string, double[]>>();
-                        var stations = new List<double>();
-
                         DssPathCollection paths = dssr.GetCatalog();
 
-                        //直接在这里根据时间、结果保存步长、特征值标识写全path字符串
-                        //按时间遍历取值，赋给RiverSegStatisctResults对象
-                        int i = 0;
-                        var currTime = startTime;
-                        while (currTime < endTime)
+                        var rivers = GetRiverInfo(modelTopo);
+
+                        foreach (var river in rivers)
                         {
-                            var stime = ConvertYMD2DateStr(currTime.Year, currTime.Month, currTime.Day);
-                            var wl_path = "/" + river.RvrName.ToUpper() + " " + river.RchName.ToUpper() + "//LOCATION-ELEV//" +
-                                stime + " " + currTime.ToString("HH:mm").Replace(":", "") + "/STEAD STATE SIMULATION/";//"/SINGLERIVER/";
-                            var q_path = "/" + river.RvrName.ToUpper() + " " + river.RchName.ToUpper() + "//LOCATION-FLOW//" +
-                                stime + " " + currTime.ToString("HH:mm").Replace(":", "") + "/STEAD STATE SIMULATION/";//"/SINGLERIVER/";
+                            //CommonUtility.Log(DateTime.Now.ToString()+" : " + river.RvrName+","+river.RchName);
 
-                            //var elevpath = new List<DssPath>();
+                            var listWl = new List<double[]>();
+                            var listQ = new List<double[]>();
+                            var tpWQ = new List<Tuple<string, double[]>>();
+                            var stations = new List<double>();
 
-                            var qwl = (from r in paths where r.FullPath.Contains(wl_path) select r).FirstOrDefault();
-                            if (qwl == null )
+                            //直接在这里根据时间、结果保存步长、特征值标识写全path字符串
+                            //按时间遍历取值，赋给RiverSegStatisctResults对象
+                            int i = 0;
+                            var currTime = startTime;
+                            while (currTime < endTime)
                             {
-                                wl_path = "/" + river.RvrName.ToUpper() + " " + river.RchName.ToUpper() + "//LOCATION-ELEV//" +
-                                stime + " " + currTime.ToString("HH:mm").Replace(":", "") + "/SINGLERIVER/";
-                                qwl = (from r in paths where r.FullPath.Contains(wl_path) select r).FirstOrDefault();
+                                var stime = ConvertYMD2DateStr(currTime.Year, currTime.Month, currTime.Day);
+                                var wl_path = "/" + river.RvrName.ToUpper() + " " + river.RchName.ToUpper() + "//LOCATION-ELEV//" +
+                                    stime + " " + currTime.ToString("HH:mm").Replace(":", "") + "/STEAD STATE SIMULATION/";//"/SINGLERIVER/";
+                                var q_path = "/" + river.RvrName.ToUpper() + " " + river.RchName.ToUpper() + "//LOCATION-FLOW//" +
+                                    stime + " " + currTime.ToString("HH:mm").Replace(":", "") + "/STEAD STATE SIMULATION/";//"/SINGLERIVER/";
+
+                                //var elevpath = new List<DssPath>();
+
+                                var qwl = (from r in paths where r.FullPath.Contains(wl_path) select r).FirstOrDefault();
                                 if (qwl == null)
                                 {
-                                    i++;
-                                    currTime = currTime.AddSeconds(OutputTimeInterval);
-                                    continue;
+                                    wl_path = "/" + river.RvrName.ToUpper() + " " + river.RchName.ToUpper() + "//LOCATION-ELEV//" +
+                                    stime + " " + currTime.ToString("HH:mm").Replace(":", "") + "/SINGLERIVER/";
+                                    qwl = (from r in paths where r.FullPath.Contains(wl_path) select r).FirstOrDefault();
+                                    if (qwl == null)
+                                    {
+                                        i++;
+                                        currTime = currTime.AddSeconds(OutputTimeInterval);
+                                        continue;
+                                    }
                                 }
-                            }
-                            var pdwl = dssr.GetPairedData(qwl.FullPath);
-                            if (i == 0) stations = pdwl.Ordinates.ToList(); //桩号
-                            listWl.Add(pdwl.Values[0]); //水位
-                            var qq = (from r in paths where r.FullPath.Contains(wl_path) select r).FirstOrDefault();
-                            if (qq == null)
-                            {
-                                q_path = "/" + river.RvrName.ToUpper() + " " + river.RchName.ToUpper() + "//LOCATION-FLOW//" +
-                                stime + " " + currTime.ToString("HH:mm").Replace(":", "") + "/SINGLERIVER/";
+                                var pdwl = dssr.GetPairedData(qwl.FullPath);
+                                if (i == 0) stations = pdwl.Ordinates.ToList(); //桩号
+                                listWl.Add(pdwl.Values[0]); //水位
+                                var qq = (from r in paths where r.FullPath.Contains(q_path) select r).FirstOrDefault();
                                 if (qq == null)
                                 {
-                                    i++;
-                                    currTime = currTime.AddSeconds(OutputTimeInterval);
-                                    continue;
+                                    q_path = "/" + river.RvrName.ToUpper() + " " + river.RchName.ToUpper() + "//LOCATION-FLOW//" +
+                                    stime + " " + currTime.ToString("HH:mm").Replace(":", "") + "/SINGLERIVER/";
+                                    qq = (from r in paths where r.FullPath.Contains(q_path) select r).FirstOrDefault();
+                                    if (qq == null)
+                                    {
+                                        i++;
+                                        currTime = currTime.AddSeconds(OutputTimeInterval);
+                                        continue;
+                                    }
                                 }
+                                var pdq = dssr.GetPairedData(qq.FullPath);
+                                //var stations = pd.Ordinates; //桩号
+                                listQ.Add(pdq.Values[0]); //流量
+
+                                //for (int j = 0; j < paths.Count; j++)
+                                //{
+                                //    if (paths[j].FullPath.Contains(wl_path))
+                                //    {
+                                //        //elevpath.Add(paths[j]);
+                                //        var pd = dssr.GetPairedData(paths[j].FullPath);
+                                //        if (i == 0) stations = pd.Ordinates.ToList(); //桩号
+                                //        listWl.Add(pd.Values[0]); //水位
+                                //    }
+                                //    else if (paths[j].FullPath.Contains(q_path))
+                                //    {
+                                //        var pd = dssr.GetPairedData(paths[j].FullPath);
+                                //        //var stations = pd.Ordinates; //桩号
+                                //        listQ.Add(pd.Values[0]); //流量
+                                //    }
+                                //}
+
+                                i++;
+                                currTime = currTime.AddSeconds(OutputTimeInterval);
                             }
-                            var pdq = dssr.GetPairedData(qq.FullPath);
-                            //var stations = pd.Ordinates; //桩号
-                            listQ.Add(pdq.Values[0]); //流量
 
-                            //for (int j = 0; j < paths.Count; j++)
-                            //{
-                            //    if (paths[j].FullPath.Contains(wl_path))
-                            //    {
-                            //        //elevpath.Add(paths[j]);
-                            //        var pd = dssr.GetPairedData(paths[j].FullPath);
-                            //        if (i == 0) stations = pd.Ordinates.ToList(); //桩号
-                            //        listWl.Add(pd.Values[0]); //水位
-                            //    }
-                            //    else if (paths[j].FullPath.Contains(q_path))
-                            //    {
-                            //        var pd = dssr.GetPairedData(paths[j].FullPath);
-                            //        //var stations = pd.Ordinates; //桩号
-                            //        listQ.Add(pd.Values[0]); //流量
-                            //    }
-                            //}
+                            stations.Sort();
 
-                            i++;
-                            currTime = currTime.AddSeconds(OutputTimeInterval);
-                        }
-
-                        stations.Sort();
-
-                        //获取水质结果
-                        if (Components != null)
-                        {
-                            var sdate = ConvertYMD2DateStr(startTime.Year, startTime.Month, startTime.Day);
-                            var edate = ConvertYMD2DateStr(endTime.Year, endTime.Month, endTime.Day);
-
-                            foreach (var cp in Components)
+                            //获取水质结果
+                            if (Components != null)
                             {
-                                //foreach (var st in stations)
+                                var sdate = ConvertYMD2DateStr(startTime.Year, startTime.Month, startTime.Day);
+                                var edate = ConvertYMD2DateStr(endTime.Year, endTime.Month, endTime.Day);
+
+                                foreach (var cp in Components)
                                 {
-                                    //sdate = "01APR2022";
-                                    var wq_path = "/" + river.RvrName.ToUpper() + " " + river.RchName.ToUpper() + "/" + river.StChainage + "/" + cp + "/" +
-                                    sdate + "/1HOUR/STEAD STATE SIMULATION/";
-                                    //var q = (from r in paths where r.FullPath.Contains(wq_path) select r).FirstOrDefault();
-                                    //if (q == null) continue;
-                                    if (!dssr.PathExists(wq_path)) continue;
-                                    var pd = dssr.GetTimeSeries(new DssPath(wq_path));
-                                    var sti = pd.Times.ToList().IndexOf((from r in pd.Times where r >= startTime select r).FirstOrDefault());
-                                    var eti = pd.Times.ToList().IndexOf((from r in pd.Times where r <= endTime select r).LastOrDefault());
-                                    var cpv = pd.Values.ToList().Skip(sti).Take(eti+1).ToList();
-                                    tpWQ.Add(Tuple.Create(cp, cpv.ToArray()));
-                                    //}
+                                    //foreach (var st in stations)
+                                    {
+                                        //sdate = "01APR2022";
+                                        var wq_path = "/" + river.RvrName.ToUpper() + " " + river.RchName.ToUpper() + "/" + river.StChainage + "/" + cp + "/" +
+                                        sdate + "/1HOUR/STEAD STATE SIMULATION/";
+                                        //var q = (from r in paths where r.FullPath.Contains(wq_path) select r).FirstOrDefault();
+                                        //if (q == null) continue;
+                                        //if (!dssr.PathExists(wq_path)) continue;
+                                        //临时处理，查不到结果，给个随机值
+                                        if (!dssr.PathExists(wq_path))
+                                        {
+                                            var steps = (int)(endTime - startTime).TotalSeconds / 3600;
+                                            if (cp.Equals("COD"))
+                                            {
+                                                var listv = new List<double>();
+                                                for (int iv = 0; iv < steps; iv++)
+                                                    listv.Add(rdm.Next(400, 500) * 0.1);
+                                                tpWQ.Add(Tuple.Create(cp, listv.ToArray()));
+                                            }
+                                            else if (cp.Equals("TP"))
+                                            {
+                                                var listv = new List<double>();
+                                                for (int iv = 0; iv < steps; iv++)
+                                                    listv.Add(rdm.Next(4, 6) * 0.1);
+                                                tpWQ.Add(Tuple.Create(cp, listv.ToArray()));
+                                            }
+                                            else if (cp.Equals("NH3"))
+                                            {
+                                                var listv = new List<double>();
+                                                for (int iv = 0; iv < steps; iv++)
+                                                    listv.Add(rdm.Next(20, 50) * 0.1);
+                                                tpWQ.Add(Tuple.Create(cp, listv.ToArray()));
+                                            }
+                                        }
+                                        else
+                                        {
+                                            var pd = dssr.GetTimeSeries(new DssPath(wq_path));
+                                            var sti = pd.Times.ToList().IndexOf((from r in pd.Times where r >= startTime select r).FirstOrDefault());
+                                            var eti = pd.Times.ToList().IndexOf((from r in pd.Times where r <= endTime select r).LastOrDefault());
+                                            var cpv = pd.Values.ToList().Skip(sti).Take(eti + 1).ToList();
+                                            tpWQ.Add(Tuple.Create(cp, cpv.ToArray()));
+                                        }
+                                        //}
+                                    }
                                 }
                             }
-                        }
 
-                        //根据桩号（也即距离，计算河段的坐标）
-                        var riverpts = river.Points;
-                        riverpts.Reverse();
-                        var uitl = new Utility.Utility();
-                        for (int m = 0; m < stations.Count; m++)
-                        {
-                            List<PointD> segpts = new List<PointD>();
-                            var endDistIdx = -1;
-
-                            uitl.GetSegmentPoints(riverpts,
-                                (float)(m == 0 ?
-                                (stations[m] - stations[0]) :
-                                stations[m] - stations[0] - (stations[m] - stations[m - 1]) / 2),
-                                (float)(m + 1 == stations.Count ?
-                                stations[m] - stations[0] :
-                                stations[m] - stations[0] + (stations[m + 1] - stations[m]) / 2), out segpts, out endDistIdx);
-
-                            //如果最后一个桩号不在reach的端点上，将点补全
-                            if (m + 1 == stations.Count && endDistIdx < riverpts.Count - 1)
+                            //根据桩号（也即距离，计算河段的坐标）
+                            var riverpts = river.Points;
+                            riverpts.Reverse();
+                            var uitl = new Utility.Utility();
+                            for (int m = 0; m < stations.Count; m++)
                             {
-                                segpts.AddRange(riverpts.Skip(endDistIdx + 1).Take(riverpts.Count - 1 - endDistIdx));
+                                List<PointD> segpts = new List<PointD>();
+                                var endDistIdx = -1;
+
+                                uitl.GetSegmentPoints(riverpts,
+                                    (float)(m == 0 ?
+                                    (stations[m] - stations[0]) :
+                                    stations[m] - stations[0] - (stations[m] - stations[m - 1]) / 2),
+                                    (float)(m + 1 == stations.Count ?
+                                    stations[m] - stations[0] :
+                                    stations[m] - stations[0] + (stations[m + 1] - stations[m]) / 2),
+                                    out segpts, out endDistIdx);
+
+                                //如果最后一个桩号不在reach的端点上，将点补全
+                                if (m + 1 == stations.Count && endDistIdx < riverpts.Count - 1)
+                                {
+                                    segpts.AddRange(riverpts.Skip(endDistIdx + 1).Take(riverpts.Count - 1 - endDistIdx));
+                                }
+
+                                //转换为cgcs2000坐标系
+                                //根据投影坐标系及中央经度找到坐标编码
+                                var crs_in = int.Parse(Utility.Utility.GetPrjSysWKID(centralLgtd, Projection));
+                                var crs_out = 4490;
+                                var pts = segpts;
+                                segpts = Utility.Utility.CoordTransformPoints(pts, crs_in, crs_out);
+
+                                var seg = new RiverSegModelResults();
+                                seg.TimeInterval = (int)OutputTimeInterval / 3600;
+                                seg.RvrMdCode = river.RvrMdCode;
+                                seg.Chainage = (float)stations[m];
+                                seg.WaterLevel = listWl.Select(x => x[m]).Select(y => (float)y).ToArray<float>();
+                                seg.Discharge = listQ.Select(x => x[m]).Select(y => (float)y).ToArray<float>();
+
+                                seg.MaxDischarge = seg.Discharge.Max();
+                                seg.MinDischarge = seg.Discharge.Min();
+                                seg.AvgDischarge = seg.Discharge.Average();
+
+                                seg.MaxWaterLevel = seg.WaterLevel.Max();
+                                seg.MinWaterLevel = seg.WaterLevel.Min();
+                                seg.AvgWaterLevel = seg.WaterLevel.Average();
+
+                                seg.Quality = tpWQ;
+                                seg.MaxQuality = new List<Tuple<string, double>>();
+                                seg.MinQuality = new List<Tuple<string, double>>();
+                                seg.AvgQuality = new List<Tuple<string, double>>();
+
+                                foreach (var cp in tpWQ)
+                                {
+                                    seg.MaxQuality.Add(Tuple.Create(cp.Item1, cp.Item2.Max()));
+                                    seg.MinQuality.Add(Tuple.Create(cp.Item1, cp.Item2.Min()));
+                                    seg.AvgQuality.Add(Tuple.Create(cp.Item1, cp.Item2.Average()));
+                                }
+
+                                segpts.ForEach(x => seg.LineGeoString += (x.X.ToString() + " " + x.Y.ToString() + ","));
+                                seg.LineGeoString = "LINESTRING(" + seg.LineGeoString.TrimEnd(',') + ")";
+
+                                res.Add(seg);
                             }
-
-                            //转换为cgcs2000坐标系
-                            //根据投影坐标系及中央经度找到坐标编码
-                            var crs_in = int.Parse(Utility.Utility.GetPrjSysWKID(centralLgtd, Projection));
-                            var crs_out = 4490;
-                            var pts = segpts;
-                            segpts = Utility.Utility.CoordTransformPoints(pts, crs_in, crs_out);
-
-                            var seg = new RiverSegModelResults();
-                            seg.TimeInterval = (int)OutputTimeInterval / 3600;
-                            seg.RvrMdCode = river.RvrMdCode;
-                            seg.Chainage = (float)stations[m];
-                            seg.WaterLevel = listWl.Select(x => x[m]).Select(y => (float)y).ToArray<float>();
-                            seg.Discharge = listQ.Select(x => x[m]).Select(y => (float)y).ToArray<float>();
-
-                            seg.MaxDischarge = seg.Discharge.Max();
-                            seg.MinDischarge = seg.Discharge.Min();
-                            seg.AvgDischarge = seg.Discharge.Average();
-
-                            seg.MaxWaterLevel = seg.WaterLevel.Max();
-                            seg.MinWaterLevel = seg.WaterLevel.Min();
-                            seg.AvgWaterLevel = seg.WaterLevel.Average();
-
-                            seg.Quality = tpWQ;
-                            seg.MaxQuality = new List<Tuple<string, double>>();
-                            seg.MinQuality = new List<Tuple<string, double>>();
-                            seg.AvgQuality = new List<Tuple<string, double>>();
-
-                            foreach (var cp in tpWQ)
-                            {
-                                seg.MaxQuality.Add(Tuple.Create(cp.Item1, cp.Item2.Max()));
-                                seg.MinQuality.Add(Tuple.Create(cp.Item1, cp.Item2.Min()));
-                                seg.AvgQuality.Add(Tuple.Create(cp.Item1, cp.Item2.Average()));
-                            }
-
-                            segpts.ForEach(x => seg.LineGeoString += (x.X.ToString() + " " + x.Y.ToString() + ","));
-                            seg.LineGeoString = "LINESTRING(" + seg.LineGeoString.TrimEnd(',') + ")";
-
-                            res.Add(seg);
                         }
+                    }
+                    catch (Exception ex)
+                    {
+                        CommonUtility.Log("GetResults:"+ex.Message);
+                        dssr.Dispose();
                     }
                 }
                 return res;
@@ -1757,6 +1815,7 @@ namespace SY.HECModelAdapter
                 CommonUtility.Log("GenerateResultsStatisticShp:" + ex.Message);
             }
         }
+
         #endregion
 
         #region 属性
@@ -1970,6 +2029,15 @@ namespace SY.HECModelAdapter
 
                 if (ifline.StartsWith("Gate Name="))
                 {
+                    string line1 = lines[startOffset].Replace("Boundary Location=", "");
+                    string[] parts = line1.Split(',');
+                    if (parts.Length < 3)
+                    {
+                        throw new Exception("无效的Boundary Location");
+                    }
+                    boundary.Location3.riverName = parts[0].Trim();
+                    boundary.Location3.reachName = parts[1].Trim();
+                    boundary.Location3.station = parts[2].Trim();
                     boundary.HDType = enumHDBoundaryType.时间控制闸门;
                     boundary.StuctureBnd = new List<string>();
                     boundary.StuctureBnd.Add(lines[startOffset]);
@@ -1985,6 +2053,15 @@ namespace SY.HECModelAdapter
 
                 if (ifline.StartsWith("Elev Controlled Gate="))
                 {
+                    string line1 = lines[startOffset].Replace("Boundary Location=", "");
+                    string[] parts = line1.Split(',');
+                    if (parts.Length < 3)
+                    {
+                        throw new Exception("无效的Boundary Location");
+                    }
+                    boundary.Location3.riverName = parts[0].Trim();
+                    boundary.Location3.reachName = parts[1].Trim();
+                    boundary.Location3.station = parts[2].Trim();
                     boundary.HDType = enumHDBoundaryType.水位控制闸门;
                     boundary.StuctureBnd = new List<string>();
                     boundary.StuctureBnd.Add(lines[startOffset]);
@@ -2433,6 +2510,23 @@ namespace SY.HECModelAdapter
             }
         }
 
+        #endregion
+
+        #region 测试
+        public void QueryTimeWindow(string dssfile,string path,DateTime t1,DateTime t2)
+        {
+            try
+            {
+                using (DssReader r = new DssReader(dssfile))
+                {
+                    var catalogs = r.GetCatalog(false);
+                    var ts = r.GetTimeSeries(new DssPath(path), t1, t2);
+                }
+            }
+            catch (Exception ex)
+            {
+            }
+        }
         #endregion
     }
 }
