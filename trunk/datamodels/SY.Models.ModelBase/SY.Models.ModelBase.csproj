@@ -93,6 +93,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="大气扩散模型\AirDiffusionDataModel.cs" />
     <Compile Include="CIRPDataModel\ICIRPNuclideDM.cs" />
     <Compile Include="CIRPDataModel\CIRPNuclideDM.cs" />
     <Compile Include="EFDCDataModel\EFDC_DM.cs" />
