@@ -24,5 +24,14 @@ namespace SY.Models.ModelBase
         //public string DwRvrCode { get; set; }
         //public string DwChainage { get; set; }
         public List<PointD> Points { get; set; }
+        /// <summary>
+        /// 存储河段上的断面桩号
+        /// </summary>
+        public List<float> Stations { get; set; }
+        public List<string> Stations2 { get; set; }
+        /// <summary>
+        /// 存储河段计算网格（线段）坐标wkt字符串
+        /// </summary>
+        public List<List<PointD>> SegmentPoints { get; set; }
     }
 }

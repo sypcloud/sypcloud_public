@@ -345,8 +345,18 @@ namespace SY.HECModelAdapter
                     {
                         using (StreamReader sr = new StreamReader(fs))
                         {
-                            data = sr.ReadToEnd();
+                            //data = sr.ReadToEnd();
                             //isRunOk = true;
+                            StringBuilder sb = new StringBuilder();
+                            string line;
+                            while ((line = sr.ReadLine()) != null)
+                            {
+                                if (!line.StartsWith("Message  | BC#"))
+                                {
+                                    sb.AppendLine(line);
+                                }
+                            }
+                            data = sb.ToString();
                         }
                     }
                     break;
@@ -777,7 +787,8 @@ namespace SY.HECModelAdapter
                         {
                             var cs = new HECCrossSection();
                             cs.Location = line.Split('=')[1].Split(',');
-
+                            cs.Station = float.Parse(cs.Location[1].Replace("*", ""));
+                            cs.Station2 = cs.Location[1];
                             JumpUnuseLine(ref sr, ref line);
 
                             if (line.StartsWith("XS GIS Cut Line")) // jump XS GIS Cut Line
@@ -789,7 +800,6 @@ namespace SY.HECModelAdapter
 
                                 JumpUnuseLine(ref sr, ref line);
                             }
-
                             if (line.StartsWith("BEGIN DESCRIPTION:"))
                             {
                                 cs.Description = sr.ReadLine();
@@ -821,7 +831,6 @@ namespace SY.HECModelAdapter
 
                                 JumpUnuseLine(ref sr, ref line);
                             }
-
                             if (line.StartsWith("#Mann"))
                             {
                                 cs.Manning = sr.ReadLine();
@@ -829,37 +838,42 @@ namespace SY.HECModelAdapter
 
                                 JumpUnuseLine(ref sr, ref line);
                             }
-
                             if (line.StartsWith("XS Rating Curve"))
                             {
                                 JumpUnuseLine(ref sr, ref line);
                             }
-
                             if (line.StartsWith("XS HTab Starting El and Incr"))
                             {
                                 cs.XS_HTab_Starting = line;
 
                                 JumpUnuseLine(ref sr, ref line);
                             }
-
                             if (line.StartsWith("XS HTab Horizontal Distribution"))
                             {
                                 JumpUnuseLine(ref sr, ref line);
                             }
-
+                            if (line.StartsWith("Pilot Channel"))
+                            {
+                                JumpUnuseLine(ref sr, ref line);
+                            }
                             if (line.StartsWith("Exp/Cntr(USF)"))
                             {
                                 line = sr.ReadLine();
                                 JumpUnuseLine(ref sr, ref line);
                             }
-
                             if (line.StartsWith("Exp/Cntr"))
                             {
                                 line = sr.ReadLine();
                                 JumpUnuseLine(ref sr, ref line);
                             }
-
-                            rr.CSCollection.Add(cs);
+                            if (line.StartsWith("IW Pilot Flow="))
+                            {
+                                while (!line.StartsWith("IW Outlet Rating Curve="))
+                                    line = sr.ReadLine();
+                                JumpUnuseLine(ref sr, ref line);
+                            }
+                            if (cs.Data != null)
+                                rr.CSCollection.Add(cs);
                         }
 
                         hecModel.RiverReachCollection.Add(rr);
@@ -1316,16 +1330,23 @@ namespace SY.HECModelAdapter
                     rvr.Points = rv.Points;
                     rvr.RvrMdCode = rv.RiverName + "&" + rv.ReachName;
                     rvr.StChainage = float.Parse(rv.CSCollection.Last().Location[1].Replace("*", ""));
-                    rvr.EdChainage = float.Parse(rv.CSCollection.Last().Location[0].Replace("*", ""));
+                    rvr.EdChainage = float.Parse(rv.CSCollection.First().Location[1].Replace("*", ""));
                     rvr.XSectoin = new List<Crosssection>();
+                    rvr.Stations = new List<float>();
+                    rvr.Stations2 = new List<string>();
+                    rvr.SegmentPoints = new List<List<PointD>>();
                     //断面处理
                     var origin = float.Parse(rv.CSCollection.Last().Location[1].Replace("*", ""));
                     foreach (var cs in rv.CSCollection)
                     {
                         //计算断面测量点空间坐标
+                        if (cs.Data == null) continue;
                         var pts = cs.Data;//断面测量点
                         var branchPts = rv.Points;//河段点坐标集合
-                        var distance = float.Parse(cs.Location[1].Replace("*", "")) - origin;//距离
+                        //var distance = float.Parse(cs.Location[1].Replace("*", "")) - origin;//距离
+                        var distance = cs.Station - origin;//距离
+                        rvr.Stations.Add(cs.Station);
+                        rvr.Stations2.Add(cs.Station2.Trim());
                         //将断面测量点分左右
                         var ld = new List<float>();
                         var rd = new List<float>();
@@ -1375,6 +1396,39 @@ namespace SY.HECModelAdapter
                             cs.Points.Add(cpt);
                         cs.Points.AddRange(rpts);
                         rvr.XSectoin.Add(cs);
+                    }
+                    //计算河段计算网格（线段）坐标
+                    var uitl = new Utility.Utility();
+                    var stations = rvr.Stations;
+                    var riverpts = rvr.Points;
+                    riverpts.Reverse();
+                    for (int m = 0; m < stations.Count; m++)
+                    {
+                        List<PointD> segpts = new List<PointD>();
+                        var endDistIdx = -1;
+
+                        uitl.GetSegmentPoints(riverpts,
+                            (float)(m == 0 ?
+                            (stations[m] - stations[0]) :
+                            stations[m] - stations[0] - (stations[m] - stations[m - 1]) / 2),
+                            (float)(m + 1 == stations.Count ?
+                            stations[m] - stations[0] :
+                            stations[m] - stations[0] + (stations[m + 1] - stations[m]) / 2),
+                            out segpts, out endDistIdx);
+
+                        //如果最后一个桩号不在reach的端点上，将点补全
+                        if (m + 1 == stations.Count && endDistIdx < riverpts.Count - 1)
+                        {
+                            segpts.AddRange(riverpts.Skip(endDistIdx + 1).Take(riverpts.Count - 1 - endDistIdx));
+                        }
+                        rvr.SegmentPoints.Add(segpts);
+                        //转换为cgcs2000坐标系
+                        //根据投影坐标系及中央经度找到坐标编码
+                        //var crs_in = int.Parse(Utility.Utility.GetPrjSysWKID(centralLgtd, Projection));
+                        //var crs_out = 4490;
+                        //var pts = segpts;
+                        //segpts = Utility.Utility.CoordTransformPoints(pts, crs_in, crs_out);
+
                     }
                     res.Add(rvr);
                 }
@@ -1581,8 +1635,7 @@ namespace SY.HECModelAdapter
             {
                 List<RiverSegModelResults> res = new List<RiverSegModelResults>();
 
-                using (var dssr = new DssReader(dssfile,
-                    DssReader.MethodID.MESS_METHOD_GENERAL_ID, DssReader.LevelID.MESS_LEVEL_CRITICAL))
+                using (var dssr = new DssReader(dssfile))
                 {
                     try
                     {
@@ -1725,35 +1778,35 @@ namespace SY.HECModelAdapter
                             }
 
                             //根据桩号（也即距离，计算河段的坐标）
-                            var riverpts = river.Points;
-                            riverpts.Reverse();
+                            //var riverpts = river.Points;
+                            //riverpts.Reverse();
                             var uitl = new Utility.Utility();
                             for (int m = 0; m < stations.Count; m++)
                             {
-                                List<PointD> segpts = new List<PointD>();
-                                var endDistIdx = -1;
+                                //List<PointD> segpts = new List<PointD>();
+                                //var endDistIdx = -1;
 
-                                uitl.GetSegmentPoints(riverpts,
-                                    (float)(m == 0 ?
-                                    (stations[m] - stations[0]) :
-                                    stations[m] - stations[0] - (stations[m] - stations[m - 1]) / 2),
-                                    (float)(m + 1 == stations.Count ?
-                                    stations[m] - stations[0] :
-                                    stations[m] - stations[0] + (stations[m + 1] - stations[m]) / 2),
-                                    out segpts, out endDistIdx);
+                                //uitl.GetSegmentPoints(riverpts,
+                                //    (float)(m == 0 ?
+                                //    (stations[m] - stations[0]) :
+                                //    stations[m] - stations[0] - (stations[m] - stations[m - 1]) / 2),
+                                //    (float)(m + 1 == stations.Count ?
+                                //    stations[m] - stations[0] :
+                                //    stations[m] - stations[0] + (stations[m + 1] - stations[m]) / 2),
+                                //    out segpts, out endDistIdx);
 
-                                //如果最后一个桩号不在reach的端点上，将点补全
-                                if (m + 1 == stations.Count && endDistIdx < riverpts.Count - 1)
-                                {
-                                    segpts.AddRange(riverpts.Skip(endDistIdx + 1).Take(riverpts.Count - 1 - endDistIdx));
-                                }
+                                ////如果最后一个桩号不在reach的端点上，将点补全
+                                //if (m + 1 == stations.Count && endDistIdx < riverpts.Count - 1)
+                                //{
+                                //    segpts.AddRange(riverpts.Skip(endDistIdx + 1).Take(riverpts.Count - 1 - endDistIdx));
+                                //}
 
                                 //转换为cgcs2000坐标系
                                 //根据投影坐标系及中央经度找到坐标编码
                                 var crs_in = int.Parse(Utility.Utility.GetPrjSysWKID(centralLgtd, Projection));
                                 var crs_out = 4490;
-                                var pts = segpts;
-                                segpts = Utility.Utility.CoordTransformPoints(pts, crs_in, crs_out);
+                                var pts = river.SegmentPoints[m];
+                                var segpts = Utility.Utility.CoordTransformPoints(pts, crs_in, crs_out);
 
                                 var seg = new RiverSegModelResults();
                                 seg.TimeInterval = (int)OutputTimeInterval / 3600;
@@ -1791,7 +1844,119 @@ namespace SY.HECModelAdapter
                     }
                     catch (Exception ex)
                     {
-                        CommonUtility.Log("GetResults:"+ex.Message);
+                        CommonUtility.Log("GetResults:" + ex.Message);
+                        dssr.Dispose();
+                    }
+                }
+                return res;
+            }
+            catch (Exception ex)
+            {
+                CommonUtility.Log("GetResults:" + ex.Message);
+                return null;
+            }
+        }
+
+        public List<RiverSegModelResults> GetResultsEx(DateTime startTime, DateTime endTime,
+            string Projection, int centralLgtd, HEC_DM modelTopo, string dssfile)
+        {
+            try
+            {
+                List<RiverSegModelResults> res = new List<RiverSegModelResults>();
+
+                using (var dssr = new DssReader(dssfile, DssReader.MethodID.MESS_METHOD_GENERAL_ID, DssReader.LevelID.MESS_LEVEL_CRITICAL))
+                {
+                    try
+                    {
+                        var rivers = GetRiverInfo(modelTopo);
+
+                        //转换为cgcs2000坐标系
+                        //根据投影坐标系及中央经度找到坐标编码
+                        var crs_in = int.Parse(Utility.Utility.GetPrjSysWKID(centralLgtd, Projection));
+                        var crs_out = 4490;
+
+                        foreach (var river in rivers)
+                        {
+                            //CommonUtility.Log(DateTime.Now.ToString()+" : " + river.RvrName+","+river.RchName);
+
+                            var listWl = new List<double[]>();
+                            var listQ = new List<double[]>();
+                            var tpWQ = new List<Tuple<string, double[]>>();
+
+                            //直接在这里根据时间、结果保存步长、特征值标识写全path字符串
+                            //按桩号遍历取值，赋给RiverSegStatisctResults对象
+                            //STAGE、FLOW只有端头桩号有值；WQ所有桩号有值
+                            var stime = ConvertYMD2DateStr(startTime.Year, startTime.Month, startTime.Day);
+                            var etime = ConvertYMD2DateStr(endTime.Year, endTime.Month, endTime.Day);
+
+                            for (int i = 0; i < river.Stations2.Count; i++)
+                            {
+                                var station = river.Stations2[i];
+                                var pts = river.SegmentPoints[i];
+                                var segpts = Utility.Utility.CoordTransformPoints(pts, crs_in, crs_out);
+
+                                var seg = new RiverSegModelResults();
+                                seg.TimeInterval = (int)OutputTimeInterval / 3600;
+                                seg.RvrMdCode = river.RvrMdCode;
+                                seg.Chainage = river.Stations[i];
+
+                                if (i == 0 || i == river.Stations2.Count - 1)
+                                {
+                                    var wl_path = "/" + river.RvrName.ToUpper() + " " + river.RchName.ToUpper() + "/"
+                                        + station + "/STAGE/" +
+                                        "/1HOUR/STEAD STATE SIMULATION/";
+                                    var ts_wl = dssr.GetTimeSeries(new DssPath(wl_path), startTime, endTime);
+                                    seg.WaterLevel = (from r in ts_wl.Values select (float)r).ToArray();
+
+                                    var q_path = "/" + river.RvrName.ToUpper() + " " + river.RchName.ToUpper() + "/"
+                                        + station + "/FLOW/" +
+                                        "/1HOUR/STEAD STATE SIMULATION/";
+                                    var ts_q = dssr.GetTimeSeries(new DssPath(q_path), startTime, endTime);
+                                    seg.Discharge = (from r in ts_q.Values select (float)r).ToArray();
+
+                                    seg.MaxDischarge = seg.Discharge.Max();
+                                    seg.MinDischarge = seg.Discharge.Min();
+                                    seg.AvgDischarge = seg.Discharge.Average();
+
+                                    seg.MaxWaterLevel = seg.WaterLevel.Max();
+                                    seg.MinWaterLevel = seg.WaterLevel.Min();
+                                    seg.AvgWaterLevel = seg.WaterLevel.Average();
+                                }
+                                //获取水质结果
+                                if (Components != null)
+                                {
+                                    foreach (var cp in Components)
+                                    {
+                                        if (cp.Equals("Water Temperature")) continue;
+                                        var wq_path = "/" + river.RvrName.ToUpper() + " " + river.RchName.ToUpper() + "/" + station + "/" + cp + "/" +
+                                            "/1HOUR/STEAD STATE SIMULATION/";
+                                        var ts_wq = dssr.GetTimeSeries(new DssPath(wq_path), startTime, endTime);
+                                        tpWQ.Add(Tuple.Create(cp, ts_wq.Values));
+                                    }
+                                }
+
+                                seg.Quality = tpWQ;
+                                seg.MaxQuality = new List<Tuple<string, double>>();
+                                seg.MinQuality = new List<Tuple<string, double>>();
+                                seg.AvgQuality = new List<Tuple<string, double>>();
+
+                                foreach (var cp in tpWQ)
+                                {
+                                    seg.MaxQuality.Add(Tuple.Create(cp.Item1, cp.Item2.Max()));
+                                    seg.MinQuality.Add(Tuple.Create(cp.Item1, cp.Item2.Min()));
+                                    seg.AvgQuality.Add(Tuple.Create(cp.Item1, cp.Item2.Average()));
+                                }
+
+                                segpts.ForEach(x => seg.LineGeoString += (x.X.ToString() + " " + x.Y.ToString() + ","));
+                                seg.LineGeoString = "LINESTRING(" + seg.LineGeoString.TrimEnd(',') + ")";
+
+                                res.Add(seg);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        CommonUtility.Log("GetResults:" + ex.Message);
                         dssr.Dispose();
                     }
                 }
@@ -2503,7 +2668,7 @@ namespace SY.HECModelAdapter
         private void JumpUnuseLine(ref StreamReader sr, ref string line)
         {
             line = sr.ReadLine();
-            while (line == "" || line == "\r\n" || line.Length == 0)
+            while (line == "" || line == "\r\n" || line.Trim().Length == 0)
             {
                 line = sr.ReadLine();
                 continue;
@@ -2513,7 +2678,7 @@ namespace SY.HECModelAdapter
         #endregion
 
         #region 测试
-        public void QueryTimeWindow(string dssfile,string path,DateTime t1,DateTime t2)
+        public void QueryTimeWindow(string dssfile, string path, DateTime t1, DateTime t2)
         {
             try
             {

@@ -16,6 +16,9 @@ namespace SY.Models.ModelBase
         public float Station { get; set; }
 
         [DataMember]
+        public string Station2 { get; set; }
+
+        [DataMember]
         public List<PointD> Data { get; set; }
 
         [DataMember]
