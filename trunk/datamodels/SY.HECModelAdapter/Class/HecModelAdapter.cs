@@ -261,6 +261,8 @@ namespace SY.HECModelAdapter
 
         public bool RunModel(string controlfile)
         {
+            isRunOk = false;
+
             try
             {
                 var dir = Path.GetDirectoryName(controlfile);
@@ -627,19 +629,22 @@ namespace SY.HECModelAdapter
                 {
                     sw.WriteLine(string.Format("River Reach={0},{1}", river.RiverName, river.ReachName));
                     sw.WriteLine(string.Format("Reach XY= {0}", river.Points.Count));
-                    for (int i = 0; i < river.Points.Count; i++)
+                    if (river.Points.Count > 0)
                     {
-                        if (i != 0 && i % 2 == 0)
+                        for (int i = 0; i < river.Points.Count; i++)
                         {
-                            sw.Write("\r\n");
-                            sw.Write(string.Format("{0,16}{1,16}", river.Points[i].X, river.Points[i].Y));
+                            if (i != 0 && i % 2 == 0)
+                            {
+                                sw.Write("\r\n");
+                                sw.Write(string.Format("{0,16}{1,16}", river.Points[i].X, river.Points[i].Y));
+                            }
+                            else
+                                sw.Write(string.Format("{0,16}{1,16}", river.Points[i].X, river.Points[i].Y));
                         }
-                        else
-                            sw.Write(string.Format("{0,16}{1,16}", river.Points[i].X, river.Points[i].Y));
+                        sw.Write("\r\n");
+                        sw.WriteLine(string.Format("Rch Text X Y={0},{1}", river.TextLocation.X, river.TextLocation.Y));
+                        sw.WriteLine("Reverse River Text= 0 ");
                     }
-                    sw.Write("\r\n");
-                    sw.WriteLine(string.Format("Rch Text X Y={0},{1}", river.TextLocation.X, river.TextLocation.Y));
-                    sw.WriteLine("Reverse River Text= 0 ");
                     sw.WriteLine("");
 
                     foreach (var cs in river.CSCollection)
@@ -664,10 +669,10 @@ namespace SY.HECModelAdapter
                             {
                                 //sw.Write("\r\n");
                                 sw.Write(Environment.NewLine);
-                                sw.Write(string.Format("{0,8}{1,8}", cs.Data[i].X, cs.Data[i].Y));
+                                sw.Write(string.Format("{0,8}{1,8}", Math.Round(cs.Data[i].X,2), Math.Round(cs.Data[i].Y,2)));
                             }
                             else
-                                sw.Write(string.Format("{0,8}{1,8}", cs.Data[i].X, cs.Data[i].Y));
+                                sw.Write(string.Format("{0,8}{1,8}", Math.Round(cs.Data[i].X,2), Math.Round(cs.Data[i].Y,2)));
                         }
                         sw.Write("\r\n");
                         sw.WriteLine("#Mann= 3 , 0 , 0");
@@ -1028,7 +1033,7 @@ namespace SY.HECModelAdapter
         /// </summary>
         /// <param name="hdmfodler">各河段断面文件存储文件夹：cs\riverreach1;cs\riverreach2\。。。</param>
         /// <param name="geometryFile">原始河网文件</param>
-        public void ImportHdm2Gemetry(string hdmfodler, string geometryFile, int tag)
+        public void ImportHdm2Geometry(string hdmfodler, string geometryFile, int tag)
         {
             try
             {
@@ -1223,6 +1228,88 @@ namespace SY.HECModelAdapter
             }
         }
 
+        public void ImportCsv2Geometry(string csvfile, string geometryFile)
+        {
+            try
+            {
+                var geo = GetGeometry(geometryFile);
+
+                var data =new List<Tuple<string, string, string, float, float>>();
+                var contents = File.ReadAllLines(csvfile).ToList();
+                contents.RemoveAt(0);
+                foreach (var line in contents)
+                {
+                    if (line.Trim().Length > 0)
+                    {
+                        var dv = line.Split(',');
+                        data.Add(Tuple.Create(dv[0], dv[1], dv[2], float.Parse(dv[3]), float.Parse(dv[4])));
+                    }
+                }
+                var rvrdata = data.GroupBy(r => new { r.Item1, r.Item2 });
+
+                var hdm = new HEC_DM();
+                hdm.JunctCollection = new List<Junctor>();
+                hdm.RiverReachCollection = new List<RiverReach>();  
+                
+                foreach (var gp_rvr in rvrdata)
+                {
+                    var rvr = (from r in geo.RiverReachCollection
+                              where r.RiverName.Equals(gp_rvr.Key.Item1) 
+                              && r.ReachName.Equals(gp_rvr.Key.Item2)
+                               select r).FirstOrDefault();
+                    if (rvr == null) continue;
+
+                    rvr.CSCollection = new List<HECCrossSection>();
+
+                    var csdata = gp_rvr.GroupBy(r => r.Item3);
+                    var idx = 0;
+                    foreach (var gp_cs in csdata)
+                    {
+                        var cs = new HECCrossSection();
+                        cs.Data = new List<PointD>();
+                        foreach (var dv in gp_cs)
+                        {
+                            cs.Data.Add(new PointD(dv.Item4, dv.Item5));
+                        }
+                        cs.Location = new string[5];
+                        cs.Location[0] = "1";
+                        cs.Location[1] = gp_cs.Key;
+
+                        if (idx == csdata.Count() - 1)
+                        {
+                            cs.Location[2] = "0";
+                            cs.Location[3] = cs.Location[2];
+                            cs.Location[4] = cs.Location[2];
+                        }
+                        else
+                        {
+                            cs.Location[2] = (float.Parse(csdata.ToList()[idx].Key) - float.Parse(csdata.ToList()[idx + 1].Key)).ToString();
+                            cs.Location[3] = cs.Location[2];
+                            cs.Location[4] = cs.Location[2];
+                        }
+
+                        var xmin = (from r in cs.Data select r.X).Min();
+                        var xminright = (from r in cs.Data where r.X > xmin select r.X).FirstOrDefault();
+                        var xmax = (from r in cs.Data select r.X).Max();
+                        var xmaxleft = (from r in cs.Data where r.X < xmax select r.X).LastOrDefault();
+                        cs.Manning = string.Format("{0,8}{1,8}{2,8}{3,8}{4,8}{5,8}{6,8}{7,8}",
+                            xmin, 0.0275, 0, xminright, 0.0225, 0, xmaxleft, 0.0275, 0);
+                        cs.ManningSta = string.Format("Bank Sta={0},{1}", xminright, xmaxleft);
+                        cs.LastEditedTime = DateTime.Now.ToShortDateString();
+                        //cs.XS_HTab_Starting = string.Format("XS HTab Starting El and Incr={0},{1},{2}", 175.5, 0.04, 20);
+                        rvr.CSCollection.Add(cs);
+                        idx++;
+                    }
+                    hdm.RiverReachCollection.Add(rvr);
+                }
+
+                WriteGeoFile(hdm, geometryFile);
+            }
+            catch (Exception ex)
+            {
+                CommonUtility.Log("ImportCsv2Geometry: " + ex.Message);
+            }
+        }
         public string Geo2Json(string geofile)
         {
             try
@@ -1400,6 +1487,7 @@ namespace SY.HECModelAdapter
                     //计算河段计算网格（线段）坐标
                     var uitl = new Utility.Utility();
                     var stations = rvr.Stations;
+                    stations.Sort();
                     var riverpts = rvr.Points;
                     riverpts.Reverse();
                     for (int m = 0; m < stations.Count; m++)
@@ -1430,6 +1518,7 @@ namespace SY.HECModelAdapter
                         //segpts = Utility.Utility.CoordTransformPoints(pts, crs_in, crs_out);
 
                     }
+                    rvr.Stations.Reverse();
                     res.Add(rvr);
                 }
                 foreach (var rv in res)
@@ -1889,6 +1978,31 @@ namespace SY.HECModelAdapter
                             var stime = ConvertYMD2DateStr(startTime.Year, startTime.Month, startTime.Day);
                             var etime = ConvertYMD2DateStr(endTime.Year, endTime.Month, endTime.Day);
 
+                            //取两头，给中间的桩号插值
+                            var wl_path_0 = "/" + river.RvrName.ToUpper() + " " + river.RchName.ToUpper() + "/"
+                                       + river.Stations2.First() + "/STAGE/" +
+                                       "/1HOUR/STEAD STATE SIMULATION/";
+                            var ts_wl_0 = dssr.GetTimeSeries(new DssPath(wl_path_0), startTime, endTime);
+                            var wl_0 = (from r in ts_wl_0.Values select (float)r).ToArray();
+
+                            var q_path_0 = "/" + river.RvrName.ToUpper() + " " + river.RchName.ToUpper() + "/"
+                                + river.Stations2.First() + "/FLOW/" +
+                                "/1HOUR/STEAD STATE SIMULATION/";
+                            var ts_q_0 = dssr.GetTimeSeries(new DssPath(q_path_0), startTime, endTime);
+                            var q_0 = (from r in ts_q_0.Values select (float)r).ToArray();
+
+                            var wl_path_1 = "/" + river.RvrName.ToUpper() + " " + river.RchName.ToUpper() + "/"
+                                       + river.Stations2.Last() + "/STAGE/" +
+                                       "/1HOUR/STEAD STATE SIMULATION/";
+                            var ts_wl_1 = dssr.GetTimeSeries(new DssPath(wl_path_0), startTime, endTime);
+                            var wl_1 = (from r in ts_wl_1.Values select (float)r).ToArray();
+
+                            var q_path_1 = "/" + river.RvrName.ToUpper() + " " + river.RchName.ToUpper() + "/"
+                                + river.Stations2.Last() + "/FLOW/" +
+                                "/1HOUR/STEAD STATE SIMULATION/";
+                            var ts_q_1 = dssr.GetTimeSeries(new DssPath(q_path_0), startTime, endTime);
+                            var q_1 = (from r in ts_q_1.Values select (float)r).ToArray();
+
                             for (int i = 0; i < river.Stations2.Count; i++)
                             {
                                 var station = river.Stations2[i];
@@ -1900,28 +2014,68 @@ namespace SY.HECModelAdapter
                                 seg.RvrMdCode = river.RvrMdCode;
                                 seg.Chainage = river.Stations[i];
 
+                                //if (i == 0 || i == river.Stations2.Count - 1)
+                                //{
+                                //    var wl_path = "/" + river.RvrName.ToUpper() + " " + river.RchName.ToUpper() + "/"
+                                //        + station + "/STAGE/" +
+                                //        "/1HOUR/STEAD STATE SIMULATION/";
+                                //    var ts_wl = dssr.GetTimeSeries(new DssPath(wl_path), startTime, endTime);
+                                //seg.WaterLevel = (from r in ts_wl.Values select (float)r).ToArray();
+
+                                //    var q_path = "/" + river.RvrName.ToUpper() + " " + river.RchName.ToUpper() + "/"
+                                //        + station + "/FLOW/" +
+                                //        "/1HOUR/STEAD STATE SIMULATION/";
+                                //    var ts_q = dssr.GetTimeSeries(new DssPath(q_path), startTime, endTime);
+                                //seg.Discharge = (from r in ts_q.Values select (float)r).ToArray();
+
+                                //seg.MaxDischarge = seg.Discharge.Max();
+                                //seg.MinDischarge = seg.Discharge.Min();
+                                //seg.AvgDischarge = seg.Discharge.Average();
+
+                                //seg.MaxWaterLevel = seg.WaterLevel.Max();
+                                //seg.MinWaterLevel = seg.WaterLevel.Min();
+                                //seg.AvgWaterLevel = seg.WaterLevel.Average();
+                                //}
+
                                 if (i == 0 || i == river.Stations2.Count - 1)
                                 {
-                                    var wl_path = "/" + river.RvrName.ToUpper() + " " + river.RchName.ToUpper() + "/"
-                                        + station + "/STAGE/" +
-                                        "/1HOUR/STEAD STATE SIMULATION/";
-                                    var ts_wl = dssr.GetTimeSeries(new DssPath(wl_path), startTime, endTime);
-                                    seg.WaterLevel = (from r in ts_wl.Values select (float)r).ToArray();
-
-                                    var q_path = "/" + river.RvrName.ToUpper() + " " + river.RchName.ToUpper() + "/"
-                                        + station + "/FLOW/" +
-                                        "/1HOUR/STEAD STATE SIMULATION/";
-                                    var ts_q = dssr.GetTimeSeries(new DssPath(q_path), startTime, endTime);
-                                    seg.Discharge = (from r in ts_q.Values select (float)r).ToArray();
-
-                                    seg.MaxDischarge = seg.Discharge.Max();
-                                    seg.MinDischarge = seg.Discharge.Min();
-                                    seg.AvgDischarge = seg.Discharge.Average();
-
-                                    seg.MaxWaterLevel = seg.WaterLevel.Max();
-                                    seg.MinWaterLevel = seg.WaterLevel.Min();
-                                    seg.AvgWaterLevel = seg.WaterLevel.Average();
+                                    seg.WaterLevel = wl_0;
+                                    seg.Discharge = q_0;
                                 }
+                                else if (i == river.Stations2.Count - 1)
+                                {
+                                    seg.WaterLevel = wl_1;
+                                    seg.Discharge = q_1;
+                                }
+                                else
+                                {
+                                    
+                                    seg.WaterLevel = new float[wl_0.Length];
+                                    seg.Discharge = new float[wl_0.Length];
+
+                                    for (int m = 0; m < wl_0.Length; m++)
+                                    {
+                                        var x1 = river.Stations.First();
+                                        var y1 = wl_0[m];
+                                        var x2 = river.Stations.Last();
+                                        var y2 = wl_1[m];
+                                        var k = (y2 - y1) / (x2 - x1);
+                                        var x = river.Stations[i];
+                                        seg.WaterLevel[m] = k * (x - x1) + y1; 
+                                        y1 = q_0[m];
+                                        y2 = q_1[m];
+                                        seg.Discharge[m] = k * (x - x1) + y1;
+                                    }
+                                }
+
+                                seg.MaxDischarge = seg.Discharge.Max();
+                                seg.MinDischarge = seg.Discharge.Min();
+                                seg.AvgDischarge = seg.Discharge.Average();
+
+                                seg.MaxWaterLevel = seg.WaterLevel.Max();
+                                seg.MinWaterLevel = seg.WaterLevel.Min();
+                                seg.AvgWaterLevel = seg.WaterLevel.Average();
+
                                 //获取水质结果
                                 if (Components != null)
                                 {
