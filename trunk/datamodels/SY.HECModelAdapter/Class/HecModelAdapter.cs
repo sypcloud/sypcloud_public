@@ -2084,8 +2084,14 @@ namespace SY.HECModelAdapter
                                         if (cp.Equals("Water Temperature")) continue;
                                         var wq_path = "/" + river.RvrName.ToUpper() + " " + river.RchName.ToUpper() + "/" + station + "/" + cp + "/" +
                                             "/1HOUR/STEAD STATE SIMULATION/";
-                                        var ts_wq = dssr.GetTimeSeries(new DssPath(wq_path), startTime, endTime);
-                                        tpWQ.Add(Tuple.Create(cp, ts_wq.Values));
+                                        if (dssr.ExactPathExists(new DssPath(wq_path)))
+                                        {
+                                            var ts_wq = dssr.GetTimeSeries(new DssPath(wq_path), startTime, endTime);
+                                            tpWQ.Add(Tuple.Create(cp, ts_wq.Values));
+                                        }else
+                                        {
+                                            tpWQ.Add(Tuple.Create(cp, new double [seg.Discharge.Length]));
+                                        }
                                     }
                                 }
 
