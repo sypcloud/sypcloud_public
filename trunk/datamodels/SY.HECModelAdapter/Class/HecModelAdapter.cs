@@ -304,14 +304,20 @@ namespace SY.HECModelAdapter
                                     if (OutputMsg != null)
                                         OutputMsg(new MessageInfo() { Tag = 0, Message = prgs.Last() });
                                 }
-                                if (msg.Contains("Finished Post Processing")) isRunOk = true;
+                                if (prgs.Count > 2)
+                                {
+                                    if (prgs[prgs.Count - 2].Contains("Complete Process") || prgs.Last().Contains("Complete Process"))
+                                    {
+                                        isRunOk = true;
+                                    }
+                                }
                             }
                             //fs.Close();
                         }
                     }
                 }
 
-                return true;
+                return isRunOk;
             }
             catch (Exception ex)
             {
@@ -669,10 +675,10 @@ namespace SY.HECModelAdapter
                             {
                                 //sw.Write("\r\n");
                                 sw.Write(Environment.NewLine);
-                                sw.Write(string.Format("{0,8}{1,8}", Math.Round(cs.Data[i].X,2), Math.Round(cs.Data[i].Y,2)));
+                                sw.Write(string.Format("{0,8}{1,8}", Math.Round(cs.Data[i].X, 2), Math.Round(cs.Data[i].Y, 2)));
                             }
                             else
-                                sw.Write(string.Format("{0,8}{1,8}", Math.Round(cs.Data[i].X,2), Math.Round(cs.Data[i].Y,2)));
+                                sw.Write(string.Format("{0,8}{1,8}", Math.Round(cs.Data[i].X, 2), Math.Round(cs.Data[i].Y, 2)));
                         }
                         sw.Write("\r\n");
                         sw.WriteLine("#Mann= 3 , 0 , 0");
@@ -1234,7 +1240,7 @@ namespace SY.HECModelAdapter
             {
                 var geo = GetGeometry(geometryFile);
 
-                var data =new List<Tuple<string, string, string, float, float>>();
+                var data = new List<Tuple<string, string, string, float, float>>();
                 var contents = File.ReadAllLines(csvfile).ToList();
                 contents.RemoveAt(0);
                 foreach (var line in contents)
@@ -1249,13 +1255,13 @@ namespace SY.HECModelAdapter
 
                 var hdm = new HEC_DM();
                 hdm.JunctCollection = new List<Junctor>();
-                hdm.RiverReachCollection = new List<RiverReach>();  
-                
+                hdm.RiverReachCollection = new List<RiverReach>();
+
                 foreach (var gp_rvr in rvrdata)
                 {
                     var rvr = (from r in geo.RiverReachCollection
-                              where r.RiverName.Equals(gp_rvr.Key.Item1) 
-                              && r.ReachName.Equals(gp_rvr.Key.Item2)
+                               where r.RiverName.Equals(gp_rvr.Key.Item1)
+                               && r.ReachName.Equals(gp_rvr.Key.Item2)
                                select r).FirstOrDefault();
                     if (rvr == null) continue;
 
@@ -1738,7 +1744,6 @@ namespace SY.HECModelAdapter
 
                             var listWl = new List<double[]>();
                             var listQ = new List<double[]>();
-                            var tpWQ = new List<Tuple<string, double[]>>();
                             var stations = new List<double>();
 
                             //直接在这里根据时间、结果保存步长、特征值标识写全path字符串
@@ -1812,6 +1817,8 @@ namespace SY.HECModelAdapter
                             stations.Sort();
 
                             //获取水质结果
+                            var tpWQ = new List<Tuple<string, double[]>>();
+
                             if (Components != null)
                             {
                                 var sdate = ConvertYMD2DateStr(startTime.Year, startTime.Month, startTime.Day);
@@ -1969,8 +1976,7 @@ namespace SY.HECModelAdapter
                             //CommonUtility.Log(DateTime.Now.ToString()+" : " + river.RvrName+","+river.RchName);
 
                             var listWl = new List<double[]>();
-                            var listQ = new List<double[]>();
-                            var tpWQ = new List<Tuple<string, double[]>>();
+                            var listQ = new List<double[]>();                            
 
                             //直接在这里根据时间、结果保存步长、特征值标识写全path字符串
                             //按桩号遍历取值，赋给RiverSegStatisctResults对象
@@ -2010,6 +2016,7 @@ namespace SY.HECModelAdapter
                                 var segpts = Utility.Utility.CoordTransformPoints(pts, crs_in, crs_out);
 
                                 var seg = new RiverSegModelResults();
+                                var tpWQ = new List<Tuple<string, double[]>>();
                                 seg.TimeInterval = (int)OutputTimeInterval / 3600;
                                 seg.RvrMdCode = river.RvrMdCode;
                                 seg.Chainage = river.Stations[i];
@@ -2049,7 +2056,7 @@ namespace SY.HECModelAdapter
                                 }
                                 else
                                 {
-                                    
+
                                     seg.WaterLevel = new float[wl_0.Length];
                                     seg.Discharge = new float[wl_0.Length];
 
@@ -2061,7 +2068,7 @@ namespace SY.HECModelAdapter
                                         var y2 = wl_1[m];
                                         var k = (y2 - y1) / (x2 - x1);
                                         var x = river.Stations[i];
-                                        seg.WaterLevel[m] = k * (x - x1) + y1; 
+                                        seg.WaterLevel[m] = k * (x - x1) + y1;
                                         y1 = q_0[m];
                                         y2 = q_1[m];
                                         seg.Discharge[m] = k * (x - x1) + y1;
@@ -2084,13 +2091,17 @@ namespace SY.HECModelAdapter
                                         if (cp.Equals("Water Temperature")) continue;
                                         var wq_path = "/" + river.RvrName.ToUpper() + " " + river.RchName.ToUpper() + "/" + station + "/" + cp + "/" +
                                             "/1HOUR/STEAD STATE SIMULATION/";
-                                        if (dssr.ExactPathExists(new DssPath(wq_path)))
+                                        
+                                        //if (dssr.ExactPathExists(new DssPath(wq_path)))
+                                        if (dssr.PathExists(new DssPath(wq_path)))
                                         {
                                             var ts_wq = dssr.GetTimeSeries(new DssPath(wq_path), startTime, endTime);
                                             tpWQ.Add(Tuple.Create(cp, ts_wq.Values));
-                                        }else
+                                        }
+                                        else
                                         {
-                                            tpWQ.Add(Tuple.Create(cp, new double [seg.Discharge.Length]));
+                                            CommonUtility.Log("未获取到水质数据的计算节点：" + wq_path);
+                                            tpWQ.Add(Tuple.Create(cp, new double[seg.Discharge.Length]));
                                         }
                                     }
                                 }
