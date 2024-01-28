@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 namespace SY.Models.ModelBase
 {
     [DataContract]
+    [KnownType(typeof(TSData))]
     public class Source: ISource
     {
         public Source()
