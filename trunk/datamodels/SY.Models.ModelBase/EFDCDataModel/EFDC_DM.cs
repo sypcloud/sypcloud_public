@@ -142,6 +142,7 @@ namespace SY.Models.ModelBase
         {
             Time = new List<double>();
             Flow = new List<double>();
+            Time2 = new List<DateTime>();
         }
         public int InType;
         public int TimeCount;
@@ -149,6 +150,7 @@ namespace SY.Models.ModelBase
         public string FlowTSName;
         public List<double> Time;
         public List<double> Flow;
+        public List<DateTime> Time2;
     }
 
 

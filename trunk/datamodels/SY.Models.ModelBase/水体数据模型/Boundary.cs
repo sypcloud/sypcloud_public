@@ -160,6 +160,22 @@ namespace SY.Models.ModelBase
         [DataMember]
         public List<string> StuctureBnd { get; set; }
 
-        
+        /// <summary>
+        /// 边界对应的流量时间序列编号，EFDC模型用
+        /// </summary>
+        [DataMember]
+        public int QTsId { get; set; }
+
+        /// <summary>
+        /// 边界对应的水文时间序列编号，EFDC模型用
+        /// </summary>
+        [DataMember]
+        public int PTsId { get; set; }
+
+        /// <summary>
+        /// 边界对应的浓度时间序列编号，EFDC模型用
+        /// </summary>
+        [DataMember]
+        public int CTsId { get; set; }
     }
 }
