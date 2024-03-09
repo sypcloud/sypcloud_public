@@ -134,6 +134,12 @@ namespace SY.Models.ModelBase
         public List<string> Pollutants { get; set; }
 
         [DataMember]
+        public List<float> DispersionC { get; set; }
+
+        [DataMember]
+        public List<float> DecayC { get; set; }
+
+        [DataMember]
         public List<List<TSData>> Concetration { get; set; }
 
         [DataMember]
