@@ -155,18 +155,18 @@ namespace SY.HECModelAdapter
                                     }
                                     if (tempParts[3] != "0000")
                                     {
-                                        var stime = tempParts[1].Split(':');
+                                        var stime = tempParts[3].Split(':');
                                         if (stime.Count() == 1) continue;
                                         if (stime.Count() == 2)
                                         {
-                                            stopHour = int.Parse(tempParts[1].Split(':')[0]);
-                                            stopMinu = int.Parse(tempParts[1].Split(':')[1]);
+                                            stopHour = int.Parse(tempParts[3].Split(':')[0]);
+                                            stopMinu = int.Parse(tempParts[3].Split(':')[1]);
                                         }
                                         else
                                         {
-                                            stopHour = int.Parse(tempParts[1].Split(':')[0]);
-                                            stopMinu = int.Parse(tempParts[1].Split(':')[1]);
-                                            stopSec = int.Parse(tempParts[1].Split(':')[2]);
+                                            stopHour = int.Parse(tempParts[3].Split(':')[0]);
+                                            stopMinu = int.Parse(tempParts[3].Split(':')[1]);
+                                            stopSec = int.Parse(tempParts[3].Split(':')[2]);
                                         }
                                     }
 

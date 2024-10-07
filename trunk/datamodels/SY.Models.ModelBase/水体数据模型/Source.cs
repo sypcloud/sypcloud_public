@@ -30,6 +30,13 @@ namespace SY.Models.ModelBase
         public List<string> CaseLeakage_ListNuclideNames { get; set; }
 
         [DataMember]
+        public List<string> Pollutants { get; set; }
+        [DataMember]
+        public List<float> ConstantConcetration { get; set; }
+        [DataMember]
+        public List<List<TSData>> Concetration { get; set; }
+
+        [DataMember]
         public string Name { get; set; }
 
         [DataMember]
@@ -43,5 +50,11 @@ namespace SY.Models.ModelBase
 
         [DataMember]
         public string TsfileItemName { get; set; }
+
+        [DataMember]
+        public float ConstantValue { get; set; }
+
+        [DataMember]
+        public string Id { get; set; }
     }
 }
