@@ -212,7 +212,7 @@ End:";
                     contents.AppendLine("     LossRate: " + subbasin.LossRate);
                     contents.AppendLine("     Percent Impervious Area: " + subbasin.Percent_Impervious_Area);
                     contents.AppendLine("     Curve Number: " + subbasin.Curve_Number);
-                    //contents.AppendLine("     Initial Abstraction: " + subbasin.Initial_Abstraction);
+                    contents.AppendLine("     Initial Abstraction: " + subbasin.Initial_Abstraction);
                     contents.AppendLine("");
                     contents.AppendLine("     Transform: " + subbasin.Transform);
                     contents.AppendLine("     Lag: " + subbasin.Lag);
@@ -232,6 +232,7 @@ End:";
                     contents.AppendLine("     Canvas Y: " + junction.Canvas_Y);
                     contents.AppendLine("     Label X: " + junction.Label_X);
                     contents.AppendLine("     Label Y: " + junction.Label_Y);
+                    if(junction.Downstream!=null & junction.Downstream!="")
                     contents.AppendLine("     Downstream: " + junction.Downstream);
                     contents.AppendLine("End:");
                     contents.AppendLine("");
